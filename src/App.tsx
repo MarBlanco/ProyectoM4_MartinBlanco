@@ -1,5 +1,3 @@
-// ARCHIVO: src/App.tsx
-
 import { useContext, useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -7,7 +5,7 @@ import { db } from './services/firebase';
 import { AuthContext } from './contexts/AuthContext';
 
 function App() {
-  const { user, loading, loginWithGoogle } = useContext(AuthContext);
+  const { user, loading, loginWithGoogle, logout } = useContext(AuthContext);
 
   const [resultado, setResultado] = useState(
     'Conectando con Firebase...',
@@ -42,10 +40,15 @@ function App() {
           <div>
             <p>Usuario autenticado</p>
             <p>Email: {user.email ?? 'No disponible'}</p>
+
+            <button onClick={() => void logout()}>
+              Cerrar sesión
+            </button>
           </div>
         ) : (
           <div>
             <p>Sin sesión iniciada</p>
+
             <button onClick={() => void loginWithGoogle()}>
               Iniciar sesión con Google
             </button>

@@ -1,11 +1,10 @@
-// ARCHIVO: src/contexts/AuthProvider.tsx
-
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
     GoogleAuthProvider,
     onAuthStateChanged,
     signInWithPopup,
+    signOut,
 } from 'firebase/auth';
 
 import { auth } from '../services/firebase';
@@ -20,6 +19,10 @@ async function loginWithGoogle(): Promise<void> {
     const provider = new GoogleAuthProvider();
 
     await signInWithPopup(auth, provider);
+}
+
+async function logout(): Promise<void> {
+    await signOut(auth);
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -40,6 +43,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             user,
             loading,
             loginWithGoogle,
+            logout,
         }),
         [user, loading],
     );
