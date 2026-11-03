@@ -5,7 +5,8 @@ import { db } from './services/firebase';
 import { AuthContext } from './contexts/AuthContext';
 
 function App() {
-  const { user, loading, loginWithGoogle, logout } = useContext(AuthContext);
+  const { user, loading, error, loginWithGoogle, logout } =
+    useContext(AuthContext);
 
   const [resultado, setResultado] = useState(
     'Conectando con Firebase...',
@@ -54,6 +55,8 @@ function App() {
             </button>
           </div>
         )}
+
+        {error && <p role="alert">{error}</p>}
       </section>
 
       <section>
