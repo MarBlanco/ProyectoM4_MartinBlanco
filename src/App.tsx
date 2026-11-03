@@ -7,7 +7,7 @@ import { db } from './services/firebase';
 import { AuthContext } from './contexts/AuthContext';
 
 function App() {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading, loginWithGoogle } = useContext(AuthContext);
 
   const [resultado, setResultado] = useState(
     'Conectando con Firebase...',
@@ -31,10 +31,10 @@ function App() {
 
   return (
     <main>
-      <h1>Prueba de Firebase</h1>
+      <h1>Gestor de Tareas</h1>
 
       <section>
-        <h2>Estado de autenticación</h2>
+        <h2>Autenticación</h2>
 
         {loading ? (
           <p>Verificando autenticación...</p>
@@ -44,12 +44,17 @@ function App() {
             <p>Email: {user.email ?? 'No disponible'}</p>
           </div>
         ) : (
-          <p>Sin sesión iniciada</p>
+          <div>
+            <p>Sin sesión iniciada</p>
+            <button onClick={() => void loginWithGoogle()}>
+              Iniciar sesión con Google
+            </button>
+          </div>
         )}
       </section>
 
       <section>
-        <h2>Estado de Firestore</h2>
+        <h2>Firestore</h2>
         <p>{resultado}</p>
       </section>
     </main>
