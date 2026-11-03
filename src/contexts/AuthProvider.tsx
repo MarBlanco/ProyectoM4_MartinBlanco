@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import {
+    GoogleAuthProvider,
+    onAuthStateChanged,
+    signInWithPopup,
+} from 'firebase/auth';
 
 import { auth } from '../services/firebase';
 import { AuthContext } from './AuthContext';
@@ -10,6 +14,12 @@ import type { AuthContextType } from './AuthContext';
 
 interface AuthProviderProps {
     readonly children: ReactNode;
+}
+
+async function loginWithGoogle(): Promise<void> {
+    const provider = new GoogleAuthProvider();
+
+    await signInWithPopup(auth, provider);
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -29,6 +39,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         () => ({
             user,
             loading,
+            loginWithGoogle,
         }),
         [user, loading],
     );
