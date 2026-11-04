@@ -1,10 +1,11 @@
 import { useContext, useEffect, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 
 import { db } from './services/firebase';
 import { AuthContext } from './contexts/AuthContext';
 
-function App() {
+function LoginPage() {
   const { user, loading, error, loginWithGoogle, logout } =
     useContext(AuthContext);
 
@@ -64,6 +65,25 @@ function App() {
         <p>{resultado}</p>
       </section>
     </main>
+  );
+}
+
+function TasksPage() {
+  return (
+    <main>
+      <h1>Mis tareas</h1>
+      <p>Panel de tareas en construcción.</p>
+    </main>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/tasks" element={<TasksPage />} />
+    </Routes>
   );
 }
 
