@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 
 import { db } from './services/firebase';
 import { AuthContext } from './contexts/AuthContext';
+import ProtectedRoute from './routes/ProtectedRoute';
 
 function LoginPage() {
   const { user, loading, error, loginWithGoogle, logout } =
@@ -69,10 +70,21 @@ function LoginPage() {
 }
 
 function TasksPage() {
+  const { user, logout, error } = useContext(AuthContext);
+
   return (
     <main>
       <h1>Mis tareas</h1>
+
       <p>Panel de tareas en construcción.</p>
+
+      <p>Email: {user?.email ?? 'No disponible'}</p>
+
+      <button onClick={() => void logout()}>
+        Cerrar sesión
+      </button>
+
+      {error && <p role="alert">{error}</p>}
     </main>
   );
 }
@@ -81,8 +93,12 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
+
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/tasks" element={<TasksPage />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/tasks" element={<TasksPage />} />
+      </Route>
     </Routes>
   );
 }
