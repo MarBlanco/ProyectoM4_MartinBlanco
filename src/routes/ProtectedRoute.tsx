@@ -1,10 +1,9 @@
-import { useContext } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 
-import { AuthContext } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 function ProtectedRoute() {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading } = useAuth();
 
   if (loading) {
     return <p>Verificando autenticación...</p>;

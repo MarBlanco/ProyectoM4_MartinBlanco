@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Colección "tasks". Debe coincidir con src/types/Task.ts.
+    // Todo lo que no esté listado aquí queda denegado.
+    match /tasks/{taskId} {
+
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      // Campos exactos del modelo Task (sin id: es el id del documento).
+      function hasValidShape(data) {
+        return data.keys().hasOnly([
+                 'title', 'description', 'completed',
+                 'userId', 'createdAt', 'updatedAt'
+               ])
+               && data.keys().hasAll([
+                 'title', 'description', 'completed',
+                 'userId', 'createdAt', 'updatedAt'
+               ])
+               && data.title is string
+               && data.title.size() > 0
+               && data.title.size() <= 100
+               && data.description is string
+               && data.description.size() <= 1000
+               && data.completed is bool
+               && data.userId is string
+               && data.createdAt is timestamp
+               && data.updatedAt is timestamp;
+      }
+
+      allow read, delete: if isOwner(resource.data.userId);
+
+      allow create: if isOwner(request.resource.data.userId)
+                    && hasValidShape(request.resource.data)
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.updatedAt == request.time;
+
+      allow update: if isOwner(resource.data.userId)
+                    && hasValidShape(request.resource.data)
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.updatedAt == request.time;
+    }
+  }
+}

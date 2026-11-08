@@ -1,75 +1,46 @@
-# React + TypeScript + Vite
+# Gestor de Tareas
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Proyecto M4 de Henry: React + TypeScript + Vite + Firebase (Authentication y Cloud Firestore).
 
-Currently, two official plugins are available:
+## Requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 20+
+- Un proyecto de Firebase con Authentication (proveedor Google) y Firestore.
 
-## React Compiler
+## Puesta en marcha
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+cp .env.example .env   # completar con las credenciales de Firebase
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+La app falla al arrancar con un mensaje claro si falta alguna variable `VITE_FIREBASE_*`.
+El archivo `.env` está ignorado por git; no lo subas.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- `npm run dev`: servidor de desarrollo
+- `npm run build`: typecheck (`tsc -b`) y build de producción
+- `npm run lint`: ESLint
 
+## Rutas
+
+- `/login`: inicio de sesión con Google (redirige a `/tasks` si ya hay sesión)
+- `/tasks`: privada; sin sesión redirige a `/login`
+- cualquier otra: página 404
+
+## Reglas de Firestore
+
+Las reglas viven en `firestore.rules` y se vinculan en `firebase.json`.
+Cada tarea pertenece a su `userId`: solo su dueño puede leerla, crearla, modificarla o borrarla,
+y no se puede cambiar el dueño ni `createdAt`. Publicar con:
+
+```bash
+npx firebase-tools deploy --only firestore:rules
 ```
+
+## Modelo de datos
+
+Colección `tasks`: `title`, `description`, `completed`, `userId`, `createdAt`, `updatedAt`
+(ver `src/types/Task.ts`).

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
     GoogleAuthProvider,
@@ -20,7 +20,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    async function loginWithGoogle(): Promise<void> {
+    const loginWithGoogle = useCallback(async (): Promise<void> => {
         setError(null);
 
         try {
@@ -52,9 +52,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 setError('Ocurrió un error inesperado al iniciar sesión.');
             }
         }
-    }
+    }, []);
 
-    async function logout(): Promise<void> {
+    const logout = useCallback(async (): Promise<void> => {
         setError(null);
 
         try {
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             console.error('Error al cerrar sesión:', error);
             setError('No se pudo cerrar la sesión. Intentá nuevamente.');
         }
-    }
+    }, []);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(
@@ -90,7 +90,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             loginWithGoogle,
             logout,
         }),
-        [user, loading, error],
+        [user, loading, error, loginWithGoogle, logout],
     );
 
     return (

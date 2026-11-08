@@ -9,10 +9,5 @@ export interface AuthContextType {
     logout: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextType>({
-    user: null,
-    loading: true,
-    error: null,
-    loginWithGoogle: async () => { },
-    logout: async () => { },
-});
+// null = fuera de un AuthProvider. useAuth() lo detecta y lanza un error claro.
+export const AuthContext = createContext<AuthContextType | null>(null);
