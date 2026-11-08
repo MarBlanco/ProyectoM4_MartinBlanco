@@ -20,12 +20,14 @@ function TaskForm({ onSubmit, loading }: TaskFormProps) {
             return;
         }
 
-        const created = await onSubmit(cleanTitle, cleanDescription);
+        const success = await onSubmit(cleanTitle, cleanDescription);
 
-        if (created) {
-            setTitle('');
-            setDescription('');
+        if (!success) {
+            return;
         }
+
+        setTitle('');
+        setDescription('');
     }
 
     return (
