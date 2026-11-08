@@ -41,6 +41,8 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
 
     useEffect(() => {
         if (!userId) {
+            // Reinicio intencional al quedar sin usuario; se mantiene para no alterar el CRUD.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTasks([]);
             setLoading(false);
             return;

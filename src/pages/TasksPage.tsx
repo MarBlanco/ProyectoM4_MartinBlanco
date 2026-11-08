@@ -23,6 +23,9 @@ export default function TasksPage() {
     } = useTasks(user?.uid);
 
     const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [emailMessage, setEmailMessage] = useState<string | null>(null);
+    const [emailError, setEmailError] = useState<string | null>(null);
 
     async function handleDelete(taskId: string) {
         const confirmed = window.confirm(
@@ -47,6 +50,51 @@ export default function TasksPage() {
         await toggleTaskCompleted(taskId, !completed);
     }
 
+    async function handleSendSummary() {
+        if (!user || sendingEmail) {
+            return;
+        }
+
+        setSendingEmail(true);
+        setEmailMessage(null);
+        setEmailError(null);
+
+        try {
+            const token = await user.getIdToken();
+
+            const response = await fetch('/api/send-summary', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            const result: {
+                success?: boolean;
+                message?: string;
+                error?: string;
+            } = await response.json().catch(() => ({}));
+
+            if (!response.ok || result.success !== true) {
+                throw new Error(
+                    result.error || 'No se pudo enviar el resumen.',
+                );
+            }
+
+            setEmailMessage(
+                result.message || 'Resumen enviado correctamente.',
+            );
+        } catch (error) {
+            setEmailError(
+                error instanceof Error
+                    ? error.message
+                    : 'Error al enviar el resumen.',
+            );
+        } finally {
+            setSendingEmail(false);
+        }
+    }
+
     if (loading) {
         return <p>Cargando tareas...</p>;
     }
@@ -63,6 +111,22 @@ export default function TasksPage() {
             />
 
             {error && <p role="alert">{error}</p>}
+
+            <button
+                type="button"
+                onClick={handleSendSummary}
+                disabled={sendingEmail}
+            >
+                {sendingEmail ? 'Enviando resumen...' : 'Enviar resumen por email'}
+            </button>
+
+            {emailMessage && (
+                <p role="status">{emailMessage}</p>
+            )}
+
+            {emailError && (
+                <p role="alert">{emailError}</p>
+            )}
 
             <h2>Mis tareas</h2>
 
