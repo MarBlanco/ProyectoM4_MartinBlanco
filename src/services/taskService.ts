@@ -75,3 +75,15 @@ export async function deleteTask(taskId: string): Promise<void> {
 
     await deleteDoc(taskReference);
 }
+
+export async function setTaskCompleted(
+    taskId: string,
+    completed: boolean,
+): Promise<void> {
+    const taskReference = doc(db, 'tasks', taskId);
+
+    await updateDoc(taskReference, {
+        completed,
+        updatedAt: serverTimestamp(),
+    });
+}

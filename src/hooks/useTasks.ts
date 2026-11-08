@@ -4,6 +4,7 @@ import type { Task } from '../types/Task';
 import {
     createTask as createTaskService,
     deleteTask as deleteTaskService,
+    setTaskCompleted as setTaskCompletedService,
     subscribeToUserTasks,
     updateTask as updateTaskService,
 } from '../services/taskService';
@@ -14,6 +15,7 @@ interface UseTasksReturn {
     creating: boolean;
     updating: boolean;
     deleting: boolean;
+    completing: boolean;
     error: string | null;
     createTask: (title: string, description: string) => Promise<void>;
     updateTask: (
@@ -22,6 +24,10 @@ interface UseTasksReturn {
         description: string,
     ) => Promise<boolean>;
     deleteTask: (taskId: string) => Promise<boolean>;
+    toggleTaskCompleted: (
+        taskId: string,
+        completed: boolean,
+    ) => Promise<boolean>;
 }
 
 export function useTasks(userId: string | undefined): UseTasksReturn {
@@ -30,6 +36,7 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
     const [creating, setCreating] = useState(false);
     const [updating, setUpdating] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [completing, setCompleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -120,15 +127,35 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
         }
     }
 
+    async function toggleTaskCompleted(
+        taskId: string,
+        completed: boolean,
+    ): Promise<boolean> {
+        setCompleting(true);
+        setError(null);
+
+        try {
+            await setTaskCompletedService(taskId, completed);
+            return true;
+        } catch {
+            setError('No se pudo actualizar el estado de la tarea.');
+            return false;
+        } finally {
+            setCompleting(false);
+        }
+    }
+
     return {
         tasks,
         loading,
         creating,
         updating,
         deleting,
+        completing,
         error,
         createTask,
         updateTask,
         deleteTask,
+        toggleTaskCompleted,
     };
 }

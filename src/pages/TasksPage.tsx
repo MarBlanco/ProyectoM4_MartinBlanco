@@ -14,10 +14,12 @@ export default function TasksPage() {
         creating,
         updating,
         deleting,
+        completing,
         error,
         createTask,
         updateTask,
         deleteTask,
+        toggleTaskCompleted,
     } = useTasks(user?.uid);
 
     const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -36,6 +38,13 @@ export default function TasksPage() {
         if (deleted && editingTaskId === taskId) {
             setEditingTaskId(null);
         }
+    }
+
+    async function handleToggleCompleted(
+        taskId: string,
+        completed: boolean,
+    ) {
+        await toggleTaskCompleted(taskId, !completed);
     }
 
     if (loading) {
@@ -72,7 +81,11 @@ export default function TasksPage() {
                                 />
                             ) : (
                                 <>
-                                    <h3>{task.title}</h3>
+                                    <h3>
+                                        {task.title}
+                                        {task.completed && ' (Completada)'}
+                                    </h3>
+
                                     <p>{task.description}</p>
 
                                     <button
@@ -83,6 +96,21 @@ export default function TasksPage() {
                                     </button>
                                 </>
                             )}
+
+                            <button
+                                type="button"
+                                onClick={() => handleToggleCompleted(
+                                    task.id,
+                                    task.completed,
+                                )}
+                                disabled={completing}
+                            >
+                                {completing
+                                    ? 'Actualizando...'
+                                    : task.completed
+                                        ? 'Marcar como pendiente'
+                                        : 'Marcar como completada'}
+                            </button>
 
                             <button
                                 type="button"
