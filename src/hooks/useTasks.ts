@@ -17,7 +17,7 @@ interface UseTasksReturn {
     deleting: boolean;
     completing: boolean;
     error: string | null;
-    createTask: (title: string, description: string) => Promise<void>;
+    createTask: (title: string, description: string) => Promise<boolean>;
     updateTask: (
         taskId: string,
         title: string,
@@ -67,10 +67,10 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
     async function createTask(
         title: string,
         description: string,
-    ): Promise<void> {
+    ): Promise<boolean> {
         if (!userId) {
             setError('Debés iniciar sesión para crear tareas.');
-            return;
+            return false;
         }
 
         setCreating(true);
@@ -82,8 +82,11 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
                 description,
                 userId,
             });
+
+            return true;
         } catch {
             setError('No se pudo crear la tarea. Intentá nuevamente.');
+            return false;
         } finally {
             setCreating(false);
         }

@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 
 interface TaskFormProps {
-    onSubmit: (title: string, description: string) => Promise<void>;
+    onSubmit: (title: string, description: string) => Promise<boolean>;
     loading: boolean;
 }
 
@@ -20,10 +20,12 @@ function TaskForm({ onSubmit, loading }: TaskFormProps) {
             return;
         }
 
-        await onSubmit(cleanTitle, cleanDescription);
+        const created = await onSubmit(cleanTitle, cleanDescription);
 
-        setTitle('');
-        setDescription('');
+        if (created) {
+            setTitle('');
+            setDescription('');
+        }
     }
 
     return (
