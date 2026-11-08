@@ -1,23 +1,37 @@
+
 import { useAuth } from '../hooks/useAuth';
+import { useTasks } from '../hooks/useTasks';
 
-function TasksPage() {
-  const { user, logout, error } = useAuth();
+export default function TasksPage() {
+    const { user } = useAuth();
+    const { tasks, loading, error } = useTasks(user?.uid);
 
-  return (
-    <main>
-      <h1>Mis tareas</h1>
+    if (loading) {
+        return <p>Cargando tareas...</p>;
+    }
 
-      <p>Panel de tareas en construcción.</p>
+    if (error) {
+        return <p>Error al cargar las tareas: {error}</p>;
+    }
 
-      <p>Email: {user?.email ?? 'No disponible'}</p>
+    return (
+        <main>
+            <h1>Mis tareas</h1>
 
-      <button onClick={() => void logout()}>
-        Cerrar sesión
-      </button>
+            <p>Usuario: {user?.email}</p>
 
-      {error && <p role="alert">{error}</p>}
-    </main>
-  );
+            {tasks.length === 0 ? (
+                <p>Todavía no tenés tareas.</p>
+            ) : (
+                <ul>
+                    {tasks.map((task) => (
+                        <li key={task.id}>
+                            <h2>{task.title}</h2>
+                            <p>{task.description}</p>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </main>
+    );
 }
-
-export default TasksPage;
