@@ -30,3 +30,6 @@ dist-ssr
 
 # Harness
 .harness/
+
+# henry
+/docs-private/
