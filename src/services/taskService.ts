@@ -1,14 +1,18 @@
 
 import {
+    addDoc,
     collection,
+    deleteDoc,
+    doc,
     onSnapshot,
-    orderBy,
     query,
+    serverTimestamp,
+    updateDoc,
     where,
 } from 'firebase/firestore';
 
 import { db } from './firebase';
-import type { Task } from '../types/Task';
+import type { Task, TaskWriteData } from '../types/Task';
 
 export function subscribeToUserTasks(
     userId: string,
@@ -20,10 +24,9 @@ export function subscribeToUserTasks(
     const tasksQuery = query(
         tasksCollection,
         where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
     );
 
-    const unsubscribe = onSnapshot(
+    return onSnapshot(
         tasksQuery,
         (snapshot) => {
             const tasks = snapshot.docs.map((document) => ({
@@ -35,6 +38,40 @@ export function subscribeToUserTasks(
         },
         onError,
     );
+}
 
-    return unsubscribe;
+export async function createTask(
+    data: Omit<TaskWriteData, 'completed' | 'createdAt' | 'updatedAt'>,
+): Promise<string> {
+    const taskData: TaskWriteData = {
+        ...data,
+        completed: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    };
+
+    const document = await addDoc(
+        collection(db, 'tasks'),
+        taskData,
+    );
+
+    return document.id;
+}
+
+export async function updateTask(
+    taskId: string,
+    data: Partial<Pick<TaskWriteData, 'title' | 'description'>>,
+): Promise<void> {
+    const taskReference = doc(db, 'tasks', taskId);
+
+    await updateDoc(taskReference, {
+        ...data,
+        updatedAt: serverTimestamp(),
+    });
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+    const taskReference = doc(db, 'tasks', taskId);
+
+    await deleteDoc(taskReference);
 }
