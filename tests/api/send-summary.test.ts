@@ -1,5 +1,4 @@
 // @vitest-environment node
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Firebase Admin y AWS SES mockeados: ninguna llamada sale a la red
@@ -114,8 +113,8 @@ async function callHandler(
 
     const res = createResponse();
     await handler(
-        { headers: {}, ...req } as unknown as VercelRequest,
-        res as unknown as VercelResponse,
+        { headers: {}, ...req } as unknown as Parameters<typeof handler>[0],
+        res as unknown as Parameters<typeof handler>[1],
     );
 
     return res;

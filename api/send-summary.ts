@@ -1,5 +1,5 @@
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import {
     cert,
@@ -9,6 +9,23 @@ import {
 } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+
+// Tipos del runtime de Node.js de Vercel Functions. Equivalen a los de
+// @vercel/node (extienden http.IncomingMessage y http.ServerResponse); se
+// definen acá para no depender de ese paquete, cuyas dependencias fijan
+// versiones con vulnerabilidades conocidas y que solo aportaba estos tipos.
+type VercelRequest = IncomingMessage & {
+    query: Record<string, string | string[]>;
+    cookies: Record<string, string>;
+    body: unknown;
+};
+
+type VercelResponse = ServerResponse & {
+    send: (body: unknown) => VercelResponse;
+    json: (jsonBody: unknown) => VercelResponse;
+    status: (statusCode: number) => VercelResponse;
+    redirect: (statusOrUrl: string | number, url?: string) => VercelResponse;
+};
 
 const {
     AWS_ACCESS_KEY_ID,
