@@ -1,5 +1,6 @@
+import { Button, Group, Stack, TextInput, Textarea } from '@mantine/core';
+import { useForm } from '@mantine/form';
 
-import { useState, type FormEvent } from 'react';
 import type { Task } from '../types/Task';
 
 interface TaskEditFormProps {
@@ -13,29 +14,35 @@ interface TaskEditFormProps {
     loading: boolean;
 }
 
+interface TaskEditFormValues {
+    title: string;
+    description: string;
+}
+
 function TaskEditForm({
     task,
     onSubmit,
     onCancel,
     loading,
 }: TaskEditFormProps) {
-    const [title, setTitle] = useState(task.title);
-    const [description, setDescription] = useState(task.description);
+    const form = useForm<TaskEditFormValues>({
+        initialValues: {
+            title: task.title,
+            description: task.description,
+        },
+        validate: {
+            title: (value) =>
+                value.trim() ? null : 'El título es obligatorio.',
+            description: (value) =>
+                value.trim() ? null : 'La descripción es obligatoria.',
+        },
+    });
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-
-        const cleanTitle = title.trim();
-        const cleanDescription = description.trim();
-
-        if (!cleanTitle || !cleanDescription) {
-            return;
-        }
-
+    async function handleSubmit(values: TaskEditFormValues) {
         const updated = await onSubmit(
             task.id,
-            cleanTitle,
-            cleanDescription,
+            values.title.trim(),
+            values.description.trim(),
         );
 
         if (updated) {
@@ -44,42 +51,43 @@ function TaskEditForm({
     }
 
     return (
-        <form onSubmit={handleSubmit}>
-            <h3>Editar tarea</h3>
-
-            <div>
-                <label htmlFor={`edit-title-${task.id}`}>Título</label>
-                <input
-                    id={`edit-title-${task.id}`}
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
+        <form noValidate onSubmit={form.onSubmit(handleSubmit)}>
+            <Stack gap="sm">
+                <TextInput
+                    label="Título"
                     required
                     maxLength={100}
                     disabled={loading}
+                    data-autofocus
+                    {...form.getInputProps('title')}
                 />
-            </div>
 
-            <div>
-                <label htmlFor={`edit-description-${task.id}`}>
-                    Descripción
-                </label>
-                <textarea
-                    id={`edit-description-${task.id}`}
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
+                <Textarea
+                    label="Descripción"
                     required
+                    autosize
+                    minRows={3}
+                    maxRows={8}
                     maxLength={1000}
                     disabled={loading}
+                    {...form.getInputProps('description')}
                 />
-            </div>
 
-            <button type="submit" disabled={loading}>
-                {loading ? 'Guardando...' : 'Guardar cambios'}
-            </button>
+                <Group justify="flex-end" mt="xs">
+                    <Button
+                        type="button"
+                        variant="default"
+                        onClick={onCancel}
+                        disabled={loading}
+                    >
+                        Cancelar
+                    </Button>
 
-            <button type="button" onClick={onCancel} disabled={loading}>
-                Cancelar
-            </button>
+                    <Button type="submit" loading={loading}>
+                        {loading ? 'Guardando...' : 'Guardar cambios'}
+                    </Button>
+                </Group>
+            </Stack>
         </form>
     );
 }

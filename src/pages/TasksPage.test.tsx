@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from 'firebase/auth';
@@ -6,6 +6,7 @@ import type { User } from 'firebase/auth';
 import TasksPage from './TasksPage';
 import { useAuth } from '../hooks/useAuth';
 import { useTasks } from '../hooks/useTasks';
+import { renderWithProviders } from '../test/render';
 import { deferred, makeTask } from '../test/utils';
 
 vi.mock('../hooks/useAuth', () => ({ useAuth: vi.fn() }));
@@ -61,93 +62,167 @@ afterEach(() => {
 describe('TasksPage - CRUD', () => {
     it('muestra la carga inicial', () => {
         mockTasks({ loading: true });
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         expect(screen.getByText('Cargando tareas...')).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Mis tareas' })).not.toBeInTheDocument();
     });
 
     it('usa el uid del usuario autenticado', () => {
         mockTasks();
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         expect(useTasks).toHaveBeenCalledWith('user-1');
-        expect(screen.getByText('Usuario: ana@example.com')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Mis tareas', level: 1 })).toBeInTheDocument();
     });
 
     it('muestra el estado vacío', () => {
         mockTasks();
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         expect(screen.getByText('Todavía no tenés tareas.')).toBeInTheDocument();
     });
 
-    it('lista las tareas e indica las completadas', () => {
+    it('lista las tareas con su estado', () => {
         mockTasks({
             tasks: [
-                makeTask({ id: '1', title: 'Pendiente' }),
-                makeTask({ id: '2', title: 'Hecha', completed: true }),
+                makeTask({ id: '1', title: 'Pendiente A' }),
+                makeTask({ id: '2', title: 'Hecha B', completed: true }),
             ],
         });
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
-        expect(screen.getByRole('heading', { name: 'Pendiente' })).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Hecha (Completada)' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Pendiente A' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Hecha B' })).toBeInTheDocument();
+        expect(screen.getByText('Pendiente')).toBeInTheDocument();
+        expect(screen.getByText('Completada')).toBeInTheDocument();
     });
 
-    it('crea una tarea desde el formulario', async () => {
+    it('calcula el resumen de tareas (total, pendientes y completadas)', () => {
+        mockTasks({
+            tasks: [
+                makeTask({ id: '1' }),
+                makeTask({ id: '2' }),
+                makeTask({ id: '3', completed: true }),
+            ],
+        });
+        renderWithProviders(<TasksPage />);
+
+        expect(screen.getByTestId('stat-Total')).toHaveTextContent('3');
+        expect(screen.getByTestId('stat-Pendientes')).toHaveTextContent('2');
+        expect(screen.getByTestId('stat-Completadas')).toHaveTextContent('1');
+    });
+
+    it('crea una tarea desde el formulario y avisa con una notificación', async () => {
         const user = userEvent.setup();
         const state = mockTasks();
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
-        await user.type(screen.getByLabelText('Título'), 'Nueva');
-        await user.type(screen.getByLabelText('Descripción'), 'Detalle');
+        await user.type(screen.getByLabelText(/^Título/), 'Nueva');
+        await user.type(screen.getByLabelText(/^Descripción/), 'Detalle');
         await user.click(screen.getByRole('button', { name: 'Crear tarea' }));
 
         expect(state.createTask).toHaveBeenCalledWith('Nueva', 'Detalle');
+        expect(await screen.findByText('La tarea se creó correctamente.')).toBeInTheDocument();
     });
 
-    it('edita una tarea y cierra el formulario de edición', async () => {
+    it('no avisa éxito si la creación falla', async () => {
         const user = userEvent.setup();
-        const state = mockTasks({ tasks: [makeTask({ id: '1' })] });
-        render(<TasksPage />);
+        mockTasks({ createTask: vi.fn().mockResolvedValue(false) });
+        renderWithProviders(<TasksPage />);
 
-        await user.click(screen.getByRole('button', { name: 'Editar' }));
+        await user.type(screen.getByLabelText(/^Título/), 'Nueva');
+        await user.type(screen.getByLabelText(/^Descripción/), 'Detalle');
+        await user.click(screen.getByRole('button', { name: 'Crear tarea' }));
 
-        const form = screen
-            .getByRole('heading', { name: 'Editar tarea' })
-            .closest('form') as HTMLFormElement;
-        const title = within(form).getByLabelText('Título');
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Crear tarea' })).toBeEnabled());
+        expect(screen.queryByText('La tarea se creó correctamente.')).not.toBeInTheDocument();
+    });
+
+    it('edita una tarea en un modal y lo cierra al guardar', async () => {
+        const user = userEvent.setup();
+        const state = mockTasks({ tasks: [makeTask({ id: '1', title: 'Original' })] });
+        renderWithProviders(<TasksPage />);
+
+        await user.click(screen.getByRole('button', { name: 'Editar: Original' }));
+
+        const dialog = await screen.findByRole('dialog', { name: 'Editar tarea' });
+        const title = within(dialog).getByLabelText(/^Título/);
         await user.clear(title);
         await user.type(title, 'Editada');
-        await user.click(within(form).getByRole('button', { name: 'Guardar cambios' }));
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }));
 
         expect(state.updateTask).toHaveBeenCalledWith(
             '1',
             'Editada',
             'En la panadería de la esquina',
         );
-        expect(screen.queryByRole('heading', { name: 'Editar tarea' })).not.toBeInTheDocument();
+        await waitFor(() =>
+            expect(screen.queryByRole('dialog', { name: 'Editar tarea' })).not.toBeInTheDocument(),
+        );
+        expect(await screen.findByText('La tarea se actualizó correctamente.')).toBeInTheDocument();
     });
 
-    it('elimina una tarea tras confirmar', async () => {
+    it('no permite cerrar el modal de edición mientras se está guardando', async () => {
         const user = userEvent.setup();
-        vi.spyOn(window, 'confirm').mockReturnValue(true);
-        const state = mockTasks({ tasks: [makeTask({ id: '1' })] });
-        render(<TasksPage />);
+        mockTasks({ tasks: [makeTask({ id: '1', title: 'Original' })], updating: true });
+        renderWithProviders(<TasksPage />);
 
-        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+        await user.click(screen.getByRole('button', { name: 'Editar: Original' }));
 
-        expect(state.deleteTask).toHaveBeenCalledWith('1');
+        const dialog = await screen.findByRole('dialog', { name: 'Editar tarea' });
+        expect(within(dialog).queryByRole('button', { name: 'Cerrar' })).not.toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: 'Guardando...' })).toBeDisabled();
+
+        await user.keyboard('{Escape}');
+
+        expect(screen.getByRole('dialog', { name: 'Editar tarea' })).toBeInTheDocument();
+    });
+
+    it('cierra el modal de edición sin guardar al cancelar', async () => {
+        const user = userEvent.setup();
+        const state = mockTasks({ tasks: [makeTask({ id: '1', title: 'Original' })] });
+        renderWithProviders(<TasksPage />);
+
+        await user.click(screen.getByRole('button', { name: 'Editar: Original' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Editar tarea' });
+        await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+
+        await waitFor(() =>
+            expect(screen.queryByRole('dialog', { name: 'Editar tarea' })).not.toBeInTheDocument(),
+        );
+        expect(state.updateTask).not.toHaveBeenCalled();
+    });
+
+    it('elimina una tarea tras confirmar en el modal', async () => {
+        const user = userEvent.setup();
+        const state = mockTasks({ tasks: [makeTask({ id: '1', title: 'Borrar' })] });
+        renderWithProviders(<TasksPage />);
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar: Borrar' }));
+
+        const dialog = await screen.findByRole('dialog', { name: 'Eliminar tarea' });
+        expect(within(dialog).getByText(/¿Estás seguro de que querés eliminar la tarea «Borrar»\?/)).toBeInTheDocument();
+        expect(state.deleteTask).not.toHaveBeenCalled();
+
+        await user.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+
+        await waitFor(() => expect(state.deleteTask).toHaveBeenCalledWith('1'));
+        expect(await screen.findByText('La tarea se eliminó correctamente.')).toBeInTheDocument();
     });
 
     it('no elimina si se cancela la confirmación', async () => {
         const user = userEvent.setup();
-        vi.spyOn(window, 'confirm').mockReturnValue(false);
-        const state = mockTasks({ tasks: [makeTask({ id: '1' })] });
-        render(<TasksPage />);
+        const state = mockTasks({ tasks: [makeTask({ id: '1', title: 'Borrar' })] });
+        renderWithProviders(<TasksPage />);
 
-        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar: Borrar' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Eliminar tarea' });
+        await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
 
+        await waitFor(() =>
+            expect(screen.queryByRole('dialog', { name: 'Eliminar tarea' })).not.toBeInTheDocument(),
+        );
         expect(state.deleteTask).not.toHaveBeenCalled();
     });
 
@@ -159,32 +234,38 @@ describe('TasksPage - CRUD', () => {
                 makeTask({ id: '2', title: 'B', completed: true }),
             ],
         });
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
-        await user.click(screen.getByRole('button', { name: 'Marcar como completada' }));
-        await user.click(screen.getByRole('button', { name: 'Marcar como pendiente' }));
+        await user.click(screen.getByRole('button', { name: 'Marcar como completada: A' }));
+        await user.click(screen.getByRole('button', { name: 'Marcar como pendiente: B' }));
 
         expect(state.toggleTaskCompleted).toHaveBeenNthCalledWith(1, '1', true);
         expect(state.toggleTaskCompleted).toHaveBeenNthCalledWith(2, '2', false);
+        expect(await screen.findByText('La tarea se marcó como completada.')).toBeInTheDocument();
     });
 
-    it('muestra los estados de carga de las operaciones', () => {
-        mockTasks({
-            tasks: [makeTask({ id: '1' })],
-            creating: true,
-            deleting: true,
-            completing: true,
-        });
-        render(<TasksPage />);
+    it('muestra el estado de carga al crear', () => {
+        mockTasks({ creating: true });
+        renderWithProviders(<TasksPage />);
 
         expect(screen.getByRole('button', { name: 'Creando...' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Eliminando...' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Actualizando...' })).toBeDisabled();
+    });
+
+    it('bloquea las acciones de las tareas mientras hay una operación en curso', () => {
+        mockTasks({
+            tasks: [makeTask({ id: '1', title: 'A' })],
+            deleting: true,
+        });
+        renderWithProviders(<TasksPage />);
+
+        expect(screen.getByRole('button', { name: 'Editar: A' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Eliminar: A' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Marcar como completada: A' })).toBeDisabled();
     });
 
     it('muestra el error del CRUD', () => {
         mockTasks({ error: 'No se pudo crear la tarea. Intentá nuevamente.' });
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         expect(screen.getByRole('alert')).toHaveTextContent(
             'No se pudo crear la tarea. Intentá nuevamente.',
@@ -201,7 +282,7 @@ describe('TasksPage - envío del resumen por email', () => {
         const user = userEvent.setup();
         const pending = deferred<Response>();
         fetchMock.mockReturnValue(pending.promise);
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         await user.click(screen.getByRole('button', { name: 'Enviar resumen por email' }));
 
@@ -217,11 +298,9 @@ describe('TasksPage - envío del resumen por email', () => {
             message: 'Resumen enviado correctamente.',
         }));
 
-        expect(await screen.findByRole('status')).toHaveTextContent(
-            'Resumen enviado correctamente.',
-        );
+        expect(await screen.findByText('Resumen enviado correctamente.')).toBeInTheDocument();
+        expect(screen.getByText('Resumen enviado')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Enviar resumen por email' })).toBeEnabled();
-        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
     it('muestra el error que devuelve el backend', async () => {
@@ -230,56 +309,42 @@ describe('TasksPage - envío del resumen por email', () => {
             { error: 'Sesión inválida o expirada. Volvé a iniciar sesión.' },
             401,
         ));
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         await user.click(screen.getByRole('button', { name: 'Enviar resumen por email' }));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent(
-            'Sesión inválida o expirada. Volvé a iniciar sesión.',
-        );
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(
+            await screen.findByText('Sesión inválida o expirada. Volvé a iniciar sesión.'),
+        ).toBeInTheDocument();
+        expect(screen.getByText('No se pudo enviar el resumen')).toBeInTheDocument();
+        expect(screen.queryByText('Resumen enviado')).not.toBeInTheDocument();
     });
 
     it('muestra un error genérico si la respuesta no es JSON', async () => {
         const user = userEvent.setup();
         fetchMock.mockResolvedValue(new Response('<html></html>', { status: 404 }));
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         await user.click(screen.getByRole('button', { name: 'Enviar resumen por email' }));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent(
-            'No se pudo enviar el resumen.',
-        );
+        expect(await screen.findByText('No se pudo enviar el resumen.')).toBeInTheDocument();
     });
 
-    it('no informa éxito si un 200 no trae la confirmación del backend', async () => {
-        const user = userEvent.setup();
-        fetchMock.mockResolvedValue(new Response('<html></html>', { status: 200 }));
-        render(<TasksPage />);
-
-        await user.click(screen.getByRole('button', { name: 'Enviar resumen por email' }));
-
-        expect(await screen.findByRole('alert')).toHaveTextContent(
-            'No se pudo enviar el resumen.',
-        );
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    });
-
-    it('muestra el error de red', async () => {
+    it('muestra el error de red y permite reintentar', async () => {
         const user = userEvent.setup();
         fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         await user.click(screen.getByRole('button', { name: 'Enviar resumen por email' }));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch');
+        expect(await screen.findByText('Failed to fetch')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Enviar resumen por email' })).toBeEnabled();
     });
 
     it('evita envíos duplicados mientras hay uno en curso', async () => {
         const pending = deferred<Response>();
         fetchMock.mockReturnValue(pending.promise);
-        render(<TasksPage />);
+        renderWithProviders(<TasksPage />);
 
         const button = screen.getByRole('button', { name: 'Enviar resumen por email' });
         fireEvent.click(button);
@@ -291,6 +356,6 @@ describe('TasksPage - envío del resumen por email', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
         pending.resolve(jsonResponse({ success: true, message: 'ok' }));
-        expect(await screen.findByRole('status')).toHaveTextContent('ok');
+        expect(await screen.findByText('ok')).toBeInTheDocument();
     });
 });

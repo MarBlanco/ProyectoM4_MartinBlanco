@@ -1,12 +1,13 @@
 import { Navigate, Outlet } from 'react-router-dom';
 
+import LoadingScreen from '../components/LoadingScreen';
 import { useAuth } from '../hooks/useAuth';
 
 function ProtectedRoute() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <p>Verificando autenticación...</p>;
+    return <LoadingScreen message="Verificando autenticación..." />;
   }
 
   if (!user) {

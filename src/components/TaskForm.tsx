@@ -1,69 +1,80 @@
-
-import { useState, type FormEvent } from 'react';
+import { Button, Stack, TextInput, Textarea, Title } from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { IconPlus } from '@tabler/icons-react';
 
 interface TaskFormProps {
     onSubmit: (title: string, description: string) => Promise<boolean>;
     loading: boolean;
 }
 
+interface TaskFormValues {
+    title: string;
+    description: string;
+}
+
 function TaskForm({ onSubmit, loading }: TaskFormProps) {
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
+    const form = useForm<TaskFormValues>({
+        initialValues: {
+            title: '',
+            description: '',
+        },
+        validate: {
+            title: (value) =>
+                value.trim() ? null : 'El título es obligatorio.',
+            description: (value) =>
+                value.trim() ? null : 'La descripción es obligatoria.',
+        },
+    });
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
+    async function handleSubmit(values: TaskFormValues) {
+        const success = await onSubmit(
+            values.title.trim(),
+            values.description.trim(),
+        );
 
-        const cleanTitle = title.trim();
-        const cleanDescription = description.trim();
-
-        if (!cleanTitle || !cleanDescription) {
-            return;
+        if (success) {
+            form.reset();
         }
-
-        const success = await onSubmit(cleanTitle, cleanDescription);
-
-        if (!success) {
-            return;
-        }
-
-        setTitle('');
-        setDescription('');
     }
 
+    // noValidate: la validación la hace Mantine, con mensajes en español.
     return (
-        <form onSubmit={handleSubmit}>
-            <h2>Nueva tarea</h2>
+        <form noValidate onSubmit={form.onSubmit(handleSubmit)}>
+            <Stack gap="sm">
+                <Title order={2} size="h4">
+                    Nueva tarea
+                </Title>
 
-            <div>
-                <label htmlFor="task-title">Título</label>
-                <input
-                    id="task-title"
-                    type="text"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder="Título de la tarea"
+                <TextInput
+                    label="Título"
+                    placeholder="Ej.: Preparar la entrega"
                     required
                     maxLength={100}
                     disabled={loading}
+                    {...form.getInputProps('title')}
                 />
-            </div>
 
-            <div>
-                <label htmlFor="task-description">Descripción</label>
-                <textarea
-                    id="task-description"
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Descripción de la tarea"
+                <Textarea
+                    label="Descripción"
+                    placeholder="Contá de qué se trata la tarea"
                     required
+                    autosize
+                    minRows={3}
+                    maxRows={8}
                     maxLength={1000}
                     disabled={loading}
+                    {...form.getInputProps('description')}
                 />
-            </div>
 
-            <button type="submit" disabled={loading}>
-                {loading ? 'Creando...' : 'Crear tarea'}
-            </button>
+                <Button
+                    type="submit"
+                    fullWidth
+                    loading={loading}
+                    leftSection={<IconPlus size={16} />}
+                >
+                    {loading ? 'Creando...' : 'Crear tarea'}
+                </Button>
+            </Stack>
         </form>
     );
 }

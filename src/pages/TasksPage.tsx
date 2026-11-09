@@ -1,9 +1,30 @@
+import { useMemo, useState } from 'react';
+import {
+    Alert,
+    Button,
+    Grid,
+    Modal,
+    Paper,
+    SimpleGrid,
+    Skeleton,
+    Stack,
+    Text,
+    ThemeIcon,
+    Title,
+    VisuallyHidden,
+} from '@mantine/core';
+import { modals } from '@mantine/modals';
+import { IconAlertCircle, IconMail, IconSend, IconClipboardList } from '@tabler/icons-react';
 
-import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { useTasks } from '../hooks/useTasks';
-import TaskForm from '../components/TaskForm';
+import TaskCard from '../components/TaskCard';
 import TaskEditForm from '../components/TaskEditForm';
+import TaskForm from '../components/TaskForm';
+import TaskStats from '../components/TaskStats';
+import { useAuth } from '../hooks/useAuth';
+import { useSendSummary } from '../hooks/useSendSummary';
+import { useTasks } from '../hooks/useTasks';
+import type { Task } from '../types/Task';
+import { notifyError, notifySuccess } from '../utils/notify';
 
 export default function TasksPage() {
     const { user } = useAuth();
@@ -22,171 +43,244 @@ export default function TasksPage() {
         toggleTaskCompleted,
     } = useTasks(user?.uid);
 
-    const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-    const [sendingEmail, setSendingEmail] = useState(false);
-    const [emailMessage, setEmailMessage] = useState<string | null>(null);
-    const [emailError, setEmailError] = useState<string | null>(null);
+    const { sending, sendSummary } = useSendSummary(user);
 
-    async function handleDelete(taskId: string) {
-        const confirmed = window.confirm(
-            '¿Estás seguro de que querés eliminar esta tarea?',
-        );
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
+    const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
 
-        if (!confirmed) {
-            return;
+    const stats = useMemo(() => {
+        const completed = tasks.filter((task) => task.completed).length;
+
+        return {
+            total: tasks.length,
+            completed,
+            pending: tasks.length - completed,
+        };
+    }, [tasks]);
+
+    async function handleCreate(title: string, description: string) {
+        const created = await createTask(title, description);
+
+        if (created) {
+            notifySuccess('La tarea se creó correctamente.');
         }
 
-        const deleted = await deleteTask(taskId);
-
-        if (deleted && editingTaskId === taskId) {
-            setEditingTaskId(null);
-        }
+        return created;
     }
 
-    async function handleToggleCompleted(
+    async function handleUpdate(
         taskId: string,
-        completed: boolean,
+        title: string,
+        description: string,
     ) {
-        await toggleTaskCompleted(taskId, !completed);
+        const updated = await updateTask(taskId, title, description);
+
+        if (updated) {
+            notifySuccess('La tarea se actualizó correctamente.');
+        }
+
+        return updated;
+    }
+
+    function handleDelete(task: Task) {
+        modals.openConfirmModal({
+            title: 'Eliminar tarea',
+            centered: true,
+            children: (
+                <Text size="sm">
+                    ¿Estás seguro de que querés eliminar la tarea «{task.title}»?
+                    Esta acción no se puede deshacer.
+                </Text>
+            ),
+            labels: { confirm: 'Eliminar', cancel: 'Cancelar' },
+            confirmProps: { color: 'red' },
+            closeButtonProps: { 'aria-label': 'Cerrar' },
+            onConfirm: async () => {
+                setBusyTaskId(task.id);
+                const deleted = await deleteTask(task.id);
+                setBusyTaskId(null);
+
+                if (deleted) {
+                    notifySuccess('La tarea se eliminó correctamente.');
+
+                    if (editingTask?.id === task.id) {
+                        setEditingTask(null);
+                    }
+                }
+            },
+        });
+    }
+
+    async function handleToggleCompleted(task: Task) {
+        setBusyTaskId(task.id);
+        const toggled = await toggleTaskCompleted(task.id, !task.completed);
+        setBusyTaskId(null);
+
+        if (toggled) {
+            notifySuccess(
+                task.completed
+                    ? 'La tarea volvió a quedar pendiente.'
+                    : 'La tarea se marcó como completada.',
+            );
+        }
     }
 
     async function handleSendSummary() {
-        if (!user || sendingEmail) {
+        const result = await sendSummary();
+
+        if (!result) {
             return;
         }
 
-        setSendingEmail(true);
-        setEmailMessage(null);
-        setEmailError(null);
-
-        try {
-            const token = await user.getIdToken();
-
-            const response = await fetch('/api/send-summary', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            const result: {
-                success?: boolean;
-                message?: string;
-                error?: string;
-            } = await response.json().catch(() => ({}));
-
-            if (!response.ok || result.success !== true) {
-                throw new Error(
-                    result.error || 'No se pudo enviar el resumen.',
-                );
-            }
-
-            setEmailMessage(
-                result.message || 'Resumen enviado correctamente.',
-            );
-        } catch (error) {
-            setEmailError(
-                error instanceof Error
-                    ? error.message
-                    : 'Error al enviar el resumen.',
-            );
-        } finally {
-            setSendingEmail(false);
+        if (result.ok) {
+            notifySuccess(result.message, 'Resumen enviado');
+        } else {
+            notifyError(result.message, 'No se pudo enviar el resumen');
         }
     }
 
     if (loading) {
-        return <p>Cargando tareas...</p>;
+        return (
+            <Stack gap="lg" aria-busy="true">
+                <VisuallyHidden role="status">Cargando tareas...</VisuallyHidden>
+                <Skeleton h={48} w={240} />
+                <SimpleGrid cols={3} spacing="md">
+                    <Skeleton h={110} />
+                    <Skeleton h={110} />
+                    <Skeleton h={110} />
+                </SimpleGrid>
+                <Skeleton h={220} />
+            </Stack>
+        );
     }
 
     return (
-        <main>
-            <h1>Mis tareas</h1>
+        <Stack gap="lg">
+            <div>
+                <Title order={1}>Mis tareas</Title>
+                <Text c="dimmed">
+                    Organizá y seguí el estado de tus tareas diarias.
+                </Text>
+            </div>
 
-            <p>Usuario: {user?.email}</p>
-
-            <TaskForm
-                onSubmit={createTask}
-                loading={creating}
+            <TaskStats
+                total={stats.total}
+                pending={stats.pending}
+                completed={stats.completed}
             />
 
-            {error && <p role="alert">{error}</p>}
-
-            <button
-                type="button"
-                onClick={handleSendSummary}
-                disabled={sendingEmail}
-            >
-                {sendingEmail ? 'Enviando resumen...' : 'Enviar resumen por email'}
-            </button>
-
-            {emailMessage && (
-                <p role="status">{emailMessage}</p>
+            {error && (
+                <Alert
+                    color="red"
+                    title="Ocurrió un problema"
+                    icon={<IconAlertCircle size={18} />}
+                >
+                    {error}
+                </Alert>
             )}
 
-            {emailError && (
-                <p role="alert">{emailError}</p>
-            )}
+            <Grid gap="lg">
+                <Grid.Col span={{ base: 12, lg: 4 }}>
+                    <Stack gap="lg">
+                        <Paper withBorder p="lg" radius="md">
+                            <TaskForm onSubmit={handleCreate} loading={creating} />
+                        </Paper>
 
-            <h2>Mis tareas</h2>
+                        <Paper withBorder p="lg" radius="md">
+                            <Stack gap="sm">
+                                <Title order={2} size="h4">
+                                    Resumen por email
+                                </Title>
 
-            {tasks.length === 0 ? (
-                <p>Todavía no tenés tareas.</p>
-            ) : (
-                <ul>
-                    {tasks.map((task) => (
-                        <li key={task.id}>
-                            {editingTaskId === task.id ? (
-                                <TaskEditForm
+                                <Text size="sm" c="dimmed">
+                                    Recibí en tu correo un resumen con el estado
+                                    de todas tus tareas.
+                                </Text>
+
+                                <Button
+                                    variant="light"
+                                    fullWidth
+                                    loading={sending}
+                                    leftSection={
+                                        sending ? <IconSend size={16} /> : <IconMail size={16} />
+                                    }
+                                    onClick={() => void handleSendSummary()}
+                                >
+                                    {sending
+                                        ? 'Enviando resumen...'
+                                        : 'Enviar resumen por email'}
+                                </Button>
+                            </Stack>
+                        </Paper>
+                    </Stack>
+                </Grid.Col>
+
+                <Grid.Col span={{ base: 12, lg: 8 }}>
+                    <Title order={2} size="h4" mb="md">
+                        Tus tareas
+                    </Title>
+
+                    {tasks.length === 0 ? (
+                        <Paper withBorder p="xl" radius="md" ta="center">
+                            <Stack align="center" gap="xs">
+                                <ThemeIcon variant="light" size={56} radius="xl" aria-hidden>
+                                    <IconClipboardList size={28} />
+                                </ThemeIcon>
+                                <Text fw={600}>Todavía no tenés tareas.</Text>
+                                <Text size="sm" c="dimmed">
+                                    Creá la primera con el formulario.
+                                </Text>
+                            </Stack>
+                        </Paper>
+                    ) : (
+                        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+                            {tasks.map((task) => (
+                                <TaskCard
+                                    key={task.id}
                                     task={task}
-                                    onSubmit={updateTask}
-                                    onCancel={() => setEditingTaskId(null)}
-                                    loading={updating}
+                                    busy={
+                                        busyTaskId === task.id &&
+                                        (deleting || completing)
+                                    }
+                                    disabled={deleting || completing}
+                                    onEdit={setEditingTask}
+                                    onDelete={handleDelete}
+                                    onToggleCompleted={(selected) =>
+                                        void handleToggleCompleted(selected)
+                                    }
                                 />
-                            ) : (
-                                <>
-                                    <h3>
-                                        {task.title}
-                                        {task.completed && ' (Completada)'}
-                                    </h3>
+                            ))}
+                        </SimpleGrid>
+                    )}
+                </Grid.Col>
+            </Grid>
 
-                                    <p>{task.description}</p>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditingTaskId(task.id)}
-                                    >
-                                        Editar
-                                    </button>
-                                </>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => handleToggleCompleted(
-                                    task.id,
-                                    task.completed,
-                                )}
-                                disabled={completing}
-                            >
-                                {completing
-                                    ? 'Actualizando...'
-                                    : task.completed
-                                        ? 'Marcar como pendiente'
-                                        : 'Marcar como completada'}
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => handleDelete(task.id)}
-                                disabled={deleting}
-                            >
-                                {deleting ? 'Eliminando...' : 'Eliminar'}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </main>
+            <Modal
+                opened={editingTask !== null}
+                onClose={() => {
+                    // Mientras se guarda no se puede cerrar: la respuesta pendiente
+                    // cerraría el modal de otra tarea que se abra después.
+                    if (!updating) {
+                        setEditingTask(null);
+                    }
+                }}
+                title="Editar tarea"
+                centered
+                withCloseButton={!updating}
+                closeOnClickOutside={!updating}
+                closeOnEscape={!updating}
+                closeButtonProps={{ 'aria-label': 'Cerrar' }}
+            >
+                {editingTask && (
+                    <TaskEditForm
+                        key={editingTask.id}
+                        task={editingTask}
+                        onSubmit={handleUpdate}
+                        onCancel={() => setEditingTask(null)}
+                        loading={updating}
+                    />
+                )}
+            </Modal>
+        </Stack>
     );
 }

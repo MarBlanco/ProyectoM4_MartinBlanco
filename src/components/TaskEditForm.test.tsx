@@ -1,15 +1,16 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import TaskEditForm from './TaskEditForm';
+import { renderWithProviders } from '../test/render';
 import { makeTask } from '../test/utils';
 
 describe('TaskEditForm', () => {
     const task = makeTask();
 
     it('muestra los valores actuales de la tarea', () => {
-        render(
+        renderWithProviders(
             <TaskEditForm
                 task={task}
                 onSubmit={vi.fn()}
@@ -18,8 +19,8 @@ describe('TaskEditForm', () => {
             />,
         );
 
-        expect(screen.getByLabelText('Título')).toHaveValue(task.title);
-        expect(screen.getByLabelText('Descripción')).toHaveValue(task.description);
+        expect(screen.getByLabelText(/^Título/)).toHaveValue(task.title);
+        expect(screen.getByLabelText(/^Descripción/)).toHaveValue(task.description);
     });
 
     it('guarda los cambios y cierra la edición si se actualiza', async () => {
@@ -27,7 +28,7 @@ describe('TaskEditForm', () => {
         const onSubmit = vi.fn().mockResolvedValue(true);
         const onCancel = vi.fn();
 
-        render(
+        renderWithProviders(
             <TaskEditForm
                 task={task}
                 onSubmit={onSubmit}
@@ -36,7 +37,7 @@ describe('TaskEditForm', () => {
             />,
         );
 
-        const title = screen.getByLabelText('Título');
+        const title = screen.getByLabelText(/^Título/);
         await user.clear(title);
         await user.type(title, '  Título editado ');
         await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
@@ -53,7 +54,7 @@ describe('TaskEditForm', () => {
         const user = userEvent.setup();
         const onCancel = vi.fn();
 
-        render(
+        renderWithProviders(
             <TaskEditForm
                 task={task}
                 onSubmit={vi.fn().mockResolvedValue(false)}
@@ -67,12 +68,32 @@ describe('TaskEditForm', () => {
         expect(onCancel).not.toHaveBeenCalled();
     });
 
+    it('no guarda y muestra el error si se deja el título vacío', async () => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn();
+
+        renderWithProviders(
+            <TaskEditForm
+                task={task}
+                onSubmit={onSubmit}
+                onCancel={vi.fn()}
+                loading={false}
+            />,
+        );
+
+        await user.clear(screen.getByLabelText(/^Título/));
+        await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+        expect(await screen.findByText('El título es obligatorio.')).toBeInTheDocument();
+        expect(onSubmit).not.toHaveBeenCalled();
+    });
+
     it('cancela sin guardar', async () => {
         const user = userEvent.setup();
         const onSubmit = vi.fn();
         const onCancel = vi.fn();
 
-        render(
+        renderWithProviders(
             <TaskEditForm
                 task={task}
                 onSubmit={onSubmit}
@@ -88,7 +109,7 @@ describe('TaskEditForm', () => {
     });
 
     it('muestra el estado de carga', () => {
-        render(
+        renderWithProviders(
             <TaskEditForm
                 task={task}
                 onSubmit={vi.fn()}

@@ -1,0 +1,5 @@
+/* Texto atenuado ("dimmed") con contraste AA (WCAG 2.1) sobre fondos claros.
+   El valor por defecto de Mantine (gray-6) da 3.3:1; gray-7 supera 7:1. */
+:root[data-mantine-color-scheme='light'] {
+    --mantine-color-dimmed: var(--mantine-color-gray-7);
+}

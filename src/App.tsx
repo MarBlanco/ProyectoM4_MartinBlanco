@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
+import AppLayout from './components/AppLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -13,7 +14,9 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/tasks" element={<TasksPage />} />
+        <Route element={<AppLayout />}>
+          <Route path="/tasks" element={<TasksPage />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
