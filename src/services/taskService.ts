@@ -3,6 +3,7 @@ import {
     addDoc,
     collection,
     deleteDoc,
+    deleteField,
     doc,
     onSnapshot,
     query,
@@ -60,12 +61,20 @@ export async function createTask(
 
 export async function updateTask(
     taskId: string,
-    data: Partial<Pick<TaskWriteData, 'title' | 'description'>>,
+    data: Partial<Pick<TaskWriteData, 'title' | 'description'>> & {
+        // string = fijar fecha; null = quitarla (se elimina el campo).
+        dueDate?: string | null;
+    },
 ): Promise<void> {
     const taskReference = doc(db, 'tasks', taskId);
 
+    const { dueDate, ...rest } = data;
+
     await updateDoc(taskReference, {
-        ...data,
+        ...rest,
+        ...(dueDate === undefined
+            ? {}
+            : { dueDate: dueDate === null ? deleteField() : dueDate }),
         updatedAt: serverTimestamp(),
     });
 }

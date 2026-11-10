@@ -17,11 +17,17 @@ interface UseTasksReturn {
     deleting: boolean;
     completing: boolean;
     error: string | null;
-    createTask: (title: string, description: string) => Promise<boolean>;
+    createTask: (
+        title: string,
+        description: string,
+        dueDate?: string,
+    ) => Promise<boolean>;
     updateTask: (
         taskId: string,
         title: string,
         description: string,
+        // undefined = no tocar la fecha; null = quitarla.
+        dueDate?: string | null,
     ) => Promise<boolean>;
     deleteTask: (taskId: string) => Promise<boolean>;
     toggleTaskCompleted: (
@@ -69,6 +75,7 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
     async function createTask(
         title: string,
         description: string,
+        dueDate?: string,
     ): Promise<boolean> {
         if (!userId) {
             setError('Debés iniciar sesión para crear tareas.');
@@ -83,6 +90,7 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
                 title,
                 description,
                 userId,
+                ...(dueDate ? { dueDate } : {}),
             });
 
             return true;
@@ -98,6 +106,7 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
         taskId: string,
         title: string,
         description: string,
+        dueDate?: string | null,
     ): Promise<boolean> {
         setUpdating(true);
         setError(null);
@@ -106,6 +115,7 @@ export function useTasks(userId: string | undefined): UseTasksReturn {
             await updateTaskService(taskId, {
                 title,
                 description,
+                ...(dueDate === undefined ? {} : { dueDate }),
             });
 
             return true;

@@ -11,11 +11,19 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == userId;
       }
 
+      // dueDate es opcional: si existe debe ser un string YYYY-MM-DD.
+      function hasValidDueDate(data) {
+        return !('dueDate' in data)
+               || (data.dueDate is string
+                   && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+      }
+
       // Campos exactos del modelo Task (sin id: es el id del documento).
+      // dueDate es el único campo opcional.
       function hasValidShape(data) {
         return data.keys().hasOnly([
                  'title', 'description', 'completed',
-                 'userId', 'createdAt', 'updatedAt'
+                 'userId', 'createdAt', 'updatedAt', 'dueDate'
                ])
                && data.keys().hasAll([
                  'title', 'description', 'completed',
@@ -29,7 +37,8 @@ service cloud.firestore {
                && data.completed is bool
                && data.userId is string
                && data.createdAt is timestamp
-               && data.updatedAt is timestamp;
+               && data.updatedAt is timestamp
+               && hasValidDueDate(data);
       }
 
       allow read, delete: if isOwner(resource.data.userId);

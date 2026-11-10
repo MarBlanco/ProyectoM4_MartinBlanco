@@ -7,6 +7,8 @@ interface TaskFields {
     description: string;
     completed: boolean;
     userId: string;
+    // Fecha de vencimiento opcional, formato YYYY-MM-DD. Las tareas anteriores no lo tienen.
+    dueDate?: string;
 }
 
 // Lectura: lo que devuelve Firestore.

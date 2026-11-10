@@ -4,7 +4,9 @@ import {
     Button,
     Grid,
     Modal,
+    Group,
     Paper,
+    SegmentedControl,
     SimpleGrid,
     Skeleton,
     Stack,
@@ -16,6 +18,7 @@ import {
 import { modals } from '@mantine/modals';
 import { IconAlertCircle, IconMail, IconSend, IconClipboardList } from '@tabler/icons-react';
 
+import TaskCalendar from '../components/TaskCalendar';
 import TaskCard from '../components/TaskCard';
 import TaskEditForm from '../components/TaskEditForm';
 import TaskForm from '../components/TaskForm';
@@ -47,6 +50,7 @@ export default function TasksPage() {
 
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
+    const [view, setView] = useState<'list' | 'calendar'>('list');
 
     const stats = useMemo(() => {
         const completed = tasks.filter((task) => task.completed).length;
@@ -58,8 +62,13 @@ export default function TasksPage() {
         };
     }, [tasks]);
 
-    async function handleCreate(title: string, description: string) {
-        const created = await createTask(title, description);
+    // dueDate viaja como argumento opcional: sin fecha, el CRUD recibe la misma llamada de siempre.
+    async function handleCreate(
+        title: string,
+        description: string,
+        ...dueDate: [dueDate?: string]
+    ) {
+        const created = await createTask(title, description, ...dueDate);
 
         if (created) {
             notifySuccess('La tarea se creó correctamente.');
@@ -72,8 +81,9 @@ export default function TasksPage() {
         taskId: string,
         title: string,
         description: string,
+        ...dueDate: [dueDate?: string | null]
     ) {
-        const updated = await updateTask(taskId, title, description);
+        const updated = await updateTask(taskId, title, description, ...dueDate);
 
         if (updated) {
             notifySuccess('La tarea se actualizó correctamente.');
@@ -155,7 +165,7 @@ export default function TasksPage() {
     }
 
     return (
-        <Stack gap="lg">
+        <Stack gap="lg" className="tasks-page">
             <div>
                 <Title order={1}>Mis tareas</Title>
                 <Text c="dimmed">
@@ -179,8 +189,8 @@ export default function TasksPage() {
                 </Alert>
             )}
 
-            <Grid gap="lg">
-                <Grid.Col span={{ base: 12, lg: 4 }}>
+            <Grid gap="lg" className="tasks-grid">
+                <Grid.Col span={{ base: 12, lg: 4 }} className="tasks-col">
                     <Stack gap="lg">
                         <Paper withBorder p="lg" radius="md">
                             <TaskForm onSubmit={handleCreate} loading={creating} />
@@ -215,12 +225,35 @@ export default function TasksPage() {
                     </Stack>
                 </Grid.Col>
 
-                <Grid.Col span={{ base: 12, lg: 8 }}>
-                    <Title order={2} size="h4" mb="md">
-                        Tus tareas
-                    </Title>
+                <Grid.Col span={{ base: 12, lg: 8 }} className="tasks-col">
+                    <Group justify="space-between" mb="md">
+                        <Title order={2} size="h4">
+                            Tus tareas
+                        </Title>
 
-                    {tasks.length === 0 ? (
+                        <SegmentedControl
+                            value={view}
+                            onChange={(value) => setView(value as 'list' | 'calendar')}
+                            data={[
+                                { value: 'list', label: 'Lista' },
+                                { value: 'calendar', label: 'Calendario' },
+                            ]}
+                            aria-label="Vista de tareas"
+                        />
+                    </Group>
+
+                    {view === 'calendar' ? (
+                        <TaskCalendar
+                            tasks={tasks}
+                            busyTaskId={busyTaskId}
+                            busy={deleting || completing}
+                            onEdit={setEditingTask}
+                            onDelete={handleDelete}
+                            onToggleCompleted={(selected) =>
+                                void handleToggleCompleted(selected)
+                            }
+                        />
+                    ) : tasks.length === 0 ? (
                         <Paper withBorder p="xl" radius="md" ta="center">
                             <Stack align="center" gap="xs">
                                 <ThemeIcon variant="light" size={56} radius="xl" aria-hidden>

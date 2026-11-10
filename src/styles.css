@@ -3,3 +3,28 @@
 :root[data-mantine-color-scheme='light'] {
     --mantine-color-dimmed: var(--mantine-color-gray-7);
 }
+
+/* Escritorio: la pantalla de tareas ocupa exactamente el alto de la ventana
+   (cabecera 64px + padding vertical del contenedor 2 x 32px) y cada columna
+   hace scroll por su cuenta. En ventanas bajas o móviles se mantiene el flujo normal. */
+@media (min-width: 75em) and (min-height: 760px) {
+    .tasks-page {
+        height: calc(100dvh - var(--app-shell-header-height, 64px) - 64px);
+        min-height: 0;
+    }
+
+    .tasks-grid {
+        flex: 1;
+        min-height: 0;
+    }
+
+    .tasks-grid > .mantine-Grid-inner {
+        height: 100%;
+    }
+
+    .tasks-col {
+        height: 100%;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+}

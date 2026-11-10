@@ -10,6 +10,7 @@ import {
 } from '@mantine/core';
 import {
     IconArrowBackUp,
+    IconCalendar,
     IconCheck,
     IconCircleCheck,
     IconClock,
@@ -18,6 +19,7 @@ import {
 } from '@tabler/icons-react';
 
 import type { Task } from '../types/Task';
+import { formatDueDate } from '../utils/dates';
 
 interface TaskCardProps {
     task: Task;
@@ -85,6 +87,15 @@ function TaskCard({
             >
                 {task.description}
             </Text>
+
+            {task.dueDate && (
+                <Group gap={6} mt="xs" wrap="nowrap">
+                    <IconCalendar size={14} aria-hidden />
+                    <Text size="xs" c="dimmed">
+                        Vence: {formatDueDate(task.dueDate)}
+                    </Text>
+                </Group>
+            )}
 
             <Group mt="md" gap="xs" justify="space-between" wrap="nowrap">
                 <Button
