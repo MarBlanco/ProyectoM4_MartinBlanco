@@ -7,7 +7,7 @@ import {
     getApps,
     initializeApp,
 } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { type Firestore, getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
 // Tipos del runtime de Node.js de Vercel Functions. Equivalen a los de
@@ -59,6 +59,43 @@ function getFirebaseApp() {
     });
 }
 
+// Mínimo de tiempo entre dos resúmenes del mismo usuario. Evita que el endpoint
+// se use en bucle (costo y cuota de SES). Colección solo accesible con Admin SDK:
+// firestore.rules deniega todo lo que no esté listado.
+const SUMMARY_COOLDOWN_MS = 60_000;
+
+type SendSlot = 'reserved' | 'rate-limited' | 'unavailable';
+
+// Reserva el envío de forma atómica. 'rate-limited' si el usuario envió hace
+// menos de SUMMARY_COOLDOWN_MS. Falla cerrado: si no se puede verificar el
+// límite, devuelve 'unavailable' y no se envía el email.
+async function reserveSendSlot(db: Firestore, uid: string): Promise<SendSlot> {
+    try {
+        const reference = db.collection('summaryLimits').doc(uid);
+
+        return await db.runTransaction<SendSlot>(async (transaction) => {
+            const snapshot = await transaction.get(reference);
+            const lastSentAt: unknown = snapshot.exists
+                ? snapshot.data()?.lastSentAt
+                : undefined;
+            const now = Date.now();
+
+            if (
+                typeof lastSentAt === 'number' &&
+                now - lastSentAt < SUMMARY_COOLDOWN_MS
+            ) {
+                return 'rate-limited';
+            }
+
+            transaction.set(reference, { lastSentAt: now });
+            return 'reserved';
+        });
+    } catch (error) {
+        console.error('Error en el límite de envíos:', error);
+        return 'unavailable';
+    }
+}
+
 function escapeHtml(value: string): string {
     return value.replace(/[&<>"']/g, (character) => {
         const entities: Record<string, string> = {
@@ -83,6 +120,10 @@ export default async function handler(
             error: 'Método no permitido.',
         });
     }
+
+    // Si el envío falla después de reservar el cupo, se libera para que el
+    // usuario pueda reintentar sin esperar el minuto.
+    let releaseSlot: (() => Promise<void>) | null = null;
 
     try {
         const authorization = req.headers.authorization;
@@ -112,7 +153,15 @@ export default async function handler(
 
         try {
             decodedToken = await auth.verifyIdToken(token);
-        } catch {
+        } catch (error) {
+            const code = (error as { code?: unknown }).code;
+
+            // Token inválido o expirado: 401. Cualquier otro fallo (red,
+            // certificados de Google) es un error del servidor: 500 con log.
+            if (typeof code !== 'string' || !code.startsWith('auth/')) {
+                throw error;
+            }
+
             return res.status(401).json({
                 error: 'Sesión inválida o expirada. Volvé a iniciar sesión.',
             });
@@ -123,6 +172,31 @@ export default async function handler(
                 error: 'El usuario no tiene un email registrado.',
             });
         }
+
+        if (decodedToken.email_verified !== true) {
+            return res.status(403).json({
+                error: 'Tu email no está verificado.',
+            });
+        }
+
+        const slot = await reserveSendSlot(db, decodedToken.uid);
+
+        if (slot === 'unavailable') {
+            return res.status(503).json({
+                error: 'El servicio no está disponible en este momento. Intentá nuevamente en unos minutos.',
+            });
+        }
+
+        if (slot === 'rate-limited') {
+            res.setHeader('Retry-After', String(SUMMARY_COOLDOWN_MS / 1000));
+            return res.status(429).json({
+                error: 'Ya enviaste un resumen hace poco. Esperá un minuto e intentá nuevamente.',
+            });
+        }
+
+        releaseSlot = async () => {
+            await db.collection('summaryLimits').doc(decodedToken.uid).delete();
+        };
 
         const snapshot = await db
             .collection('tasks')
@@ -210,6 +284,14 @@ export default async function handler(
         });
     } catch (error) {
         console.error('Error al enviar resumen:', error);
+
+        if (releaseSlot) {
+            try {
+                await releaseSlot();
+            } catch (releaseError) {
+                console.error('No se pudo liberar el cupo de envío:', releaseError);
+            }
+        }
 
         return res.status(500).json({
             error: 'No se pudo enviar el resumen. Intentá nuevamente.',

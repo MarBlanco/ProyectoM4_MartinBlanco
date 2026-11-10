@@ -153,6 +153,34 @@ describe('useSendSummary', () => {
         expect(outcome).toEqual({ ok: false, message: 'No se pudo enviar el resumen.' });
     });
 
+    it.each([
+        [403, 'Tu email no está verificado.'],
+        [429, 'Ya enviaste un resumen hace poco. Esperá un minuto e intentá nuevamente.'],
+        [503, 'El servicio no está disponible en este momento. Intentá nuevamente en unos minutos.'],
+    ])('usa un mensaje específico para el estado %i si la respuesta no es JSON', async (status, message) => {
+        fetchMock.mockResolvedValue(new Response('<html></html>', { status }));
+        const { result } = renderHook(() => useSendSummary(user));
+
+        let outcome: unknown;
+        await act(async () => {
+            outcome = await result.current.sendSummary();
+        });
+
+        expect(outcome).toEqual({ ok: false, message });
+    });
+
+    it('prioriza el mensaje del servidor sobre el de respaldo', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ error: 'Mensaje del servidor.' }, 429));
+        const { result } = renderHook(() => useSendSummary(user));
+
+        let outcome: unknown;
+        await act(async () => {
+            outcome = await result.current.sendSummary();
+        });
+
+        expect(outcome).toEqual({ ok: false, message: 'Mensaje del servidor.' });
+    });
+
     it('devuelve el error de red', async () => {
         fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
         const { result } = renderHook(() => useSendSummary(user));

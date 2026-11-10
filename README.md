@@ -18,6 +18,8 @@ El proyecto permite que cada usuario ingrese con su cuenta de Google y administr
 - Creación, visualización, edición y eliminación de tareas.
 - Actualización de tareas en tiempo real, sin necesidad de recargar la página.
 - Posibilidad de marcar tareas como completadas o pendientes.
+- Fecha de vencimiento opcional (no se puede elegir una fecha anterior a hoy).
+- Vista de calendario mensual (alternable con la lista) con indicadores de tareas pendientes y completadas por día, y panel con las tareas del día seleccionado.
 - Resumen visual con el total de tareas, pendientes y completadas.
 - Envío por correo electrónico de un resumen de las tareas.
 - Mensajes de carga, confirmación y error durante las operaciones.
@@ -66,7 +68,7 @@ Esta separación permite mantener el código ordenado y facilita realizar cambio
 │   └── api/              # Pruebas de la función de email
 │
 ├── firestore.rules       # Reglas de seguridad de la base de datos
-├── vercel.json           # Configuración de rutas para Vercel
+├── vercel.json           # Rutas de la SPA y cabeceras de seguridad para Vercel
 └── tsconfig.*.json       # Configuración de TypeScript
 ```
 
@@ -103,6 +105,7 @@ Cada documento representa una tarea y contiene los siguientes campos:
 | `userId` | string | Identificador del usuario propietario. |
 | `createdAt` | timestamp | Fecha de creación. |
 | `updatedAt` | timestamp | Fecha de última actualización. |
+| `dueDate` | string (opcional) | Fecha de vencimiento en formato `YYYY-MM-DD`. Las tareas anteriores no lo tienen y se interpretan como "sin fecha". |
 
 ### Protección de los datos
 
@@ -137,10 +140,11 @@ El envío se realiza desde el servidor mediante una función de Vercel y AWS SES
 1. El usuario selecciona la opción **Enviar resumen por email**.
 2. La aplicación obtiene el token de autenticación de Firebase.
 3. El frontend envía una solicitud `POST` a `/api/send-summary`, incluyendo el token.
-4. La función del servidor verifica que el token sea válido.
-5. Obtiene las tareas correspondientes al usuario autenticado.
-6. Prepara el contenido del correo y lo envía mediante AWS SES.
-7. La aplicación muestra una notificación indicando el resultado de la operación.
+4. La función del servidor verifica que el token sea válido y que el email de la cuenta esté verificado.
+5. Comprueba que el usuario no haya enviado otro resumen en el último minuto.
+6. Obtiene las tareas correspondientes al usuario autenticado.
+7. Prepara el contenido del correo y lo envía mediante AWS SES.
+8. La aplicación muestra una notificación indicando el resultado de la operación.
 
 El destinatario se obtiene de la cuenta autenticada. No se permite que el navegador elija libremente a qué dirección enviar el resumen.
 
@@ -150,6 +154,8 @@ Las credenciales de AWS y Firebase Admin se mantienen exclusivamente en el servi
 
 Además, la función controla las solicitudes y evita procesar métodos HTTP no permitidos.
 
+**Límite de envíos.** Cada usuario puede pedir un resumen como máximo una vez por minuto. El último envío se registra en la colección `summaryLimits/{uid}` de Firestore, que solo escribe el servidor (Admin SDK); las reglas de Firestore deniegan cualquier acceso desde el navegador. El límite **falla cerrado**: si Firestore no permite verificarlo, no se envía el correo y la API responde `503`. Si el envío falla después de reservar el cupo (por ejemplo, un error de SES), el cupo se libera para poder reintentar enseguida.
+
 ### Respuestas de la API
 
 | Código HTTP | Significado |
@@ -157,8 +163,11 @@ Además, la función controla las solicitudes y evita procesar métodos HTTP no 
 | `200` | El envío fue aceptado correctamente. |
 | `400` | La cuenta no tiene una dirección de email disponible. |
 | `401` | Falta el token o no es válido. |
+| `403` | El email de la cuenta no está verificado. |
 | `405` | Se utilizó un método HTTP no permitido. |
+| `429` | Se pidió otro resumen antes de que pase un minuto (incluye cabecera `Retry-After`). |
 | `500` | Ocurrió un error interno o falta una configuración del servidor. |
+| `503` | No se pudo verificar el límite de envíos; no se envió ningún correo. |
 
 **Importante:** AWS SES puede trabajar en modo sandbox. En ese caso, tanto el remitente como el destinatario deben estar verificados en la misma región. Para enviar correos a destinatarios no verificados es necesario solicitar acceso a producción.
 
@@ -288,6 +297,12 @@ Las pruebas cubren:
 | `LoginPage.test.tsx` | Pantalla de acceso y errores de autenticación. |
 | `TasksPage.test.tsx` | Operaciones desde la interfaz y notificaciones. |
 | `send-summary.test.ts` | Validaciones y respuestas de la API. |
+| `static-security.test.ts` | Revisión estática: sin `eval`/`innerHTML`, reglas de Firestore y cabeceras de seguridad. |
+| `TaskCalendar.test.tsx` | Calendario: días con tareas, indicadores, selección de día, navegación entre meses y día sin tareas. |
+| `TaskDueDate.test.tsx` | Fecha de vencimiento al crear y editar (con, sin, modificar, quitar) y rechazo de fechas pasadas. |
+| `TasksPageCalendar.test.tsx` | Selector Lista/Calendario y tareas antiguas sin fecha. |
+| `taskService.test.ts` | Guardado y borrado de `dueDate` en Firestore (simulado). |
+| `security.test.tsx` | XSS (HTML mostrado como texto) y textos con palabras SQL aceptados sin filtrar. |
 
 En las pruebas automatizadas se utilizan servicios simulados (*mocks*) para Firebase, AWS SES y las solicitudes HTTP.
 
@@ -308,7 +323,7 @@ Para realizar el despliegue desde el repositorio:
 5. Publicar las reglas de seguridad de Firestore.
 6. Verificar la configuración del remitente y los permisos de AWS SES.
 
-El archivo `vercel.json` permite que las rutas de la aplicación funcionen correctamente cuando se ingresa directamente a una página o se recarga el navegador.
+El archivo `vercel.json` permite que las rutas de la aplicación funcionen correctamente cuando se ingresa directamente a una página o se recarga el navegador, y define las cabeceras de seguridad HTTP.
 
 ## Seguridad y dependencias
 
@@ -319,20 +334,33 @@ Se tomaron medidas para proteger los datos y las credenciales del proyecto:
 - La API verifica el token de Firebase antes de procesar una solicitud.
 - Las consultas del servidor se limitan al usuario autenticado.
 - Las reglas de Firestore controlan el acceso a los documentos.
+- El contenido de las tareas se muestra como texto (React lo escapa) y el HTML del email escapa título y descripción.
+- La API exige email verificado y limita los envíos por usuario (falla cerrado).
+- `vercel.json` agrega las cabeceras `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` y `Permissions-Policy`.
+- Hay pruebas automáticas de seguridad (`src/security.test.tsx`, `tests/api/static-security.test.ts`).
 
 ### Estado de las dependencias
 
-Durante el desarrollo se realizó una revisión de seguridad de las dependencias mediante `npm audit`.
+`npm audit` informa **14 paquetes afectados (4 altos y 10 moderados)**, que provienen de solo **3 advisories**. Los 14 se analizaron uno por uno y ninguno es explotable en esta aplicación. Siguen pendientes porque la única corrección que ofrece npm es un downgrade mayor.
 
-Se corrigieron distintas vulnerabilidades y se eliminaron dependencias que ya no eran necesarias.
+| Advisory | Severidad | Paquete origen | Paquetes que lo arrastran | Ámbito |
+|---|---|---|---|---|
+| [GHSA-m9gg-hp2v-232j](https://github.com/advisories/GHSA-m9gg-hp2v-232j) (CWE-295): `getAuthContext` puede devolver certificados no autorizados como autorizados | Alta | `@grpc/grpc-js` < 1.13.6 (instalado 1.9.16) | `@firebase/firestore`, `@firebase/firestore-compat`, `firebase` (4 paquetes) | Producción (SDK web) |
+| [GHSA-f596-whhp-79r4](https://github.com/advisories/GHSA-f596-whhp-79r4) (CWE-550): el servidor gRPC envía al cliente mensajes de error de sus handlers | Baja (npm la agrupa en el paquete alto) | `@grpc/grpc-js` < 1.13.6 | los mismos 4 paquetes | Producción (SDK web) |
+| [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) (CWE-405): denegación de servicio en `minimatch` por amplificación de patrones | Moderada | `minimatch` 7.0.0 – 11.0.0 (instalado 10.2.6) | `eslint`, `@eslint/js`, `@eslint/config-array`, `typescript-eslint` y 5 paquetes `@typescript-eslint/*` (10 paquetes) | Solo desarrollo |
 
-En la última auditoría documentada quedaron **14 alertas: 4 altas en dependencias de producción y 10 moderadas en herramientas de desarrollo**.
+**Riesgo residual**
 
-Las alertas de producción están relacionadas con la dependencia `@grpc/grpc-js` utilizada por la cadena de Firebase Firestore. Las moderadas restantes corresponden a dependencias de ESLint.
+- **`@grpc/grpc-js` (alta):** las dos fallas afectan al **servidor** gRPC (autenticación mutua TLS y errores que devuelve un servidor). Esta aplicación no levanta ningún servidor gRPC. El navegador usa el SDK web de Firestore por `fetch`/WebChannel, y se comprobó que el bundle generado (`dist/`) no contiene `grpc-js`. En `api/`, `firebase-admin` usa `@grpc/grpc-js` 1.14.7 (versión corregida) solo como cliente hacia Google. Riesgo residual: **bajo / no explotable**.
+- **`minimatch` (moderada):** solo existe en la cadena de ESLint, que corre en desarrollo y en la integración, nunca en producción ni en el navegador. Para explotarla un atacante tendría que controlar los patrones glob que lee ESLint, que son los de este repositorio. Riesgo residual: **bajo**.
 
-Se decidió no aplicar actualizaciones forzadas ni cambios de versión que pudieran generar incompatibilidades con Firebase o afectar el funcionamiento de la aplicación.
+**Por qué no se corrigen ahora**
 
-Estas alertas quedan documentadas para su seguimiento cuando existan versiones compatibles.
+- `npm audit fix --force` instalaría `firebase@9.14.0` y `eslint@9.39.5`: downgrades mayores que romperían la aplicación y sus pruebas.
+- `@firebase/firestore` fija `@grpc/grpc-js@~1.9.0`, incluso en la última versión publicada de `@firebase/firestore`. Forzar una versión nueva con `overrides` contradice esa dependencia y no aporta nada: el código afectado no se usa.
+- Subir `minimatch` a 11 es una actualización mayor dentro de las herramientas de desarrollo, sin beneficio para el producto.
+
+**Seguimiento:** volver a ejecutar `npm audit` cuando `@firebase/firestore` actualice `@grpc/grpc-js` o ESLint/typescript-eslint actualicen `minimatch`, y entonces actualizar con `npm update` y repetir las pruebas.
 
 ## Uso de inteligencia artificial durante el desarrollo
 

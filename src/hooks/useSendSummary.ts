@@ -17,6 +17,14 @@ interface UseSendSummaryReturn {
     sendSummary: () => Promise<SendSummaryResult | null>;
 }
 
+// Mensajes de respaldo por código HTTP, para cuando la respuesta no trae JSON
+// (por ejemplo, un error de la plataforma) y no hay `error` del servidor.
+const STATUS_MESSAGES: Record<number, string> = {
+    403: 'Tu email no está verificado.',
+    429: 'Ya enviaste un resumen hace poco. Esperá un minuto e intentá nuevamente.',
+    503: 'El servicio no está disponible en este momento. Intentá nuevamente en unos minutos.',
+};
+
 // Solicita a la Vercel Function /api/send-summary el envío del resumen por email.
 // El frontend solo envía el ID token de Firebase; las credenciales de AWS SES
 // viven únicamente en el servidor.
@@ -51,7 +59,10 @@ export function useSendSummary(user: User | null): UseSendSummaryReturn {
             if (!response.ok || result.success !== true) {
                 return {
                     ok: false,
-                    message: result.error || 'No se pudo enviar el resumen.',
+                    message:
+                        result.error ||
+                        STATUS_MESSAGES[response.status] ||
+                        'No se pudo enviar el resumen.',
                 };
             }
 
@@ -60,6 +71,8 @@ export function useSendSummary(user: User | null): UseSendSummaryReturn {
                 message: result.message || 'Resumen enviado correctamente.',
             };
         } catch (error) {
+            console.error('Error al enviar el resumen:', error);
+
             return {
                 ok: false,
                 message:

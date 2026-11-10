@@ -6,8 +6,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => {
     const where = vi.fn();
     const get = vi.fn();
-    const collection = vi.fn(() => ({ where }));
+    const docDelete = vi.fn();
+    const doc = vi.fn(() => ({ id: 'limit-ref', delete: docDelete }));
+    const collection = vi.fn(() => ({ where, doc }));
     where.mockImplementation(() => ({ get }));
+    // Límite de envíos: transacción simulada sobre summaryLimits/{uid}.
+    const txGet = vi.fn();
+    const txSet = vi.fn();
+    const runTransaction = vi.fn(
+        async (callback: (tx: { get: typeof txGet; set: typeof txSet }) => unknown) =>
+            callback({ get: txGet, set: txSet }),
+    );
 
     return {
         getApps: vi.fn(() => [] as unknown[]),
@@ -16,6 +25,11 @@ const mocks = vi.hoisted(() => {
         cert: vi.fn((serviceAccount: unknown) => serviceAccount),
         verifyIdToken: vi.fn(),
         collection,
+        doc,
+        docDelete,
+        txGet,
+        txSet,
+        runTransaction,
         where,
         get,
         sesSend: vi.fn(),
@@ -35,7 +49,10 @@ vi.mock('firebase-admin/auth', () => ({
 }));
 
 vi.mock('firebase-admin/firestore', () => ({
-    getFirestore: () => ({ collection: mocks.collection }),
+    getFirestore: () => ({
+        collection: mocks.collection,
+        runTransaction: mocks.runTransaction,
+    }),
 }));
 
 vi.mock('@aws-sdk/client-ses', () => ({
@@ -142,7 +159,13 @@ describe('POST /api/send-summary', () => {
         mocks.verifyIdToken.mockResolvedValue({
             uid: 'user-1',
             email: 'ana@example.com',
+            email_verified: true,
         });
+        mocks.runTransaction.mockImplementation(async (callback) =>
+            callback({ get: mocks.txGet, set: mocks.txSet }),
+        );
+        mocks.txGet.mockResolvedValue({ exists: false });
+        mocks.docDelete.mockResolvedValue(undefined);
         mocks.sesSend.mockResolvedValue({ MessageId: 'msg-1' });
         mockTasks([]);
     });
@@ -327,5 +350,120 @@ describe('POST /api/send-summary', () => {
 
         expect(res.statusCode).toBe(500);
         expect(mocks.sesSend).not.toHaveBeenCalled();
+    });
+
+    it('responde 403 si el email no está verificado y no envía nada', async () => {
+        mocks.verifyIdToken.mockResolvedValue({
+            uid: 'user-1',
+            email: 'ana@example.com',
+            email_verified: false,
+        });
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(403);
+        expect(mocks.sesSend).not.toHaveBeenCalled();
+    });
+
+    it('responde 429 si el usuario ya envió un resumen hace menos de un minuto', async () => {
+        mocks.txGet.mockResolvedValue({
+            exists: true,
+            data: () => ({ lastSentAt: Date.now() - 5_000 }),
+        });
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(429);
+        expect(res.headers['Retry-After']).toBe('60');
+        expect(mocks.sesSend).not.toHaveBeenCalled();
+        expect(mocks.txSet).not.toHaveBeenCalled();
+    });
+
+    it('permite enviar de nuevo pasado el tiempo mínimo y registra el envío', async () => {
+        mocks.txGet.mockResolvedValue({
+            exists: true,
+            data: () => ({ lastSentAt: Date.now() - 120_000 }),
+        });
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(200);
+        expect(mocks.txSet).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'limit-ref' }),
+            { lastSentAt: expect.any(Number) },
+        );
+        expect(mocks.doc).toHaveBeenCalledWith('user-1');
+    });
+
+    it('falla cerrado: responde 503 y no envía si no se puede verificar el límite', async () => {
+        mocks.runTransaction.mockRejectedValue(new Error('firestore caído'));
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(503);
+        expect(mocks.sesSend).not.toHaveBeenCalled();
+        expect(mocks.get).not.toHaveBeenCalled();
+        // El mensaje al cliente no expone el detalle del error interno.
+        expect(JSON.stringify(res.body)).not.toContain('firestore caído');
+    });
+
+    it('responde 503 si falla la lectura del límite dentro de la transacción', async () => {
+        mocks.txGet.mockRejectedValue(new Error('permiso denegado'));
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(503);
+        expect(mocks.sesSend).not.toHaveBeenCalled();
+        expect(mocks.get).not.toHaveBeenCalled();
+    });
+
+    it('libera el cupo si SES falla después de reservarlo', async () => {
+        mocks.sesSend.mockRejectedValue(new Error('ses caído'));
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(500);
+        expect(mocks.txSet).toHaveBeenCalledTimes(1);
+        expect(mocks.docDelete).toHaveBeenCalledTimes(1);
+    });
+
+    it('libera el cupo si falla la consulta de tareas', async () => {
+        mocks.get.mockRejectedValue(new Error('firestore'));
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(500);
+        expect(mocks.docDelete).toHaveBeenCalledTimes(1);
+    });
+
+    it('no libera ningún cupo si el envío fue exitoso ni si fue rechazado por límite', async () => {
+        await callHandler(authorized);
+        expect(mocks.docDelete).not.toHaveBeenCalled();
+
+        mocks.txGet.mockResolvedValue({
+            exists: true,
+            data: () => ({ lastSentAt: Date.now() - 1_000 }),
+        });
+        await callHandler(authorized);
+        expect(mocks.docDelete).not.toHaveBeenCalled();
+    });
+
+    it('responde 500 con log (no 401) si la verificación del token falla por un error inesperado', async () => {
+        mocks.verifyIdToken.mockRejectedValue(new Error('fetch certs failed'));
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(500);
+        expect(mocks.sesSend).not.toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalled();
+    });
+
+    it('sigue respondiendo 500 aunque falle la liberación del cupo', async () => {
+        mocks.sesSend.mockRejectedValue(new Error('ses caído'));
+        mocks.docDelete.mockRejectedValue(new Error('no se pudo borrar'));
+
+        const res = await callHandler(authorized);
+
+        expect(res.statusCode).toBe(500);
     });
 });
