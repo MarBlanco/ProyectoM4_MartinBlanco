@@ -3,6 +3,8 @@ import { DateInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { IconCalendar } from '@tabler/icons-react';
 
+import { todayString } from '../utils/dates';
+
 import type { Task } from '../types/Task';
 
 interface TaskEditFormProps {
@@ -40,6 +42,11 @@ function TaskEditForm({
                 value.trim() ? null : 'El título es obligatorio.',
             description: (value) =>
                 value.trim() ? null : 'La descripción es obligatoria.',
+            // Se puede conservar un vencimiento ya vencido, pero no elegir una fecha pasada nueva.
+            dueDate: (value) =>
+                value && value < todayString() && value !== task.dueDate
+                    ? 'La fecha no puede ser anterior a hoy.'
+                    : null,
         },
     });
 
@@ -86,6 +93,11 @@ function TaskEditForm({
                     placeholder="Opcional"
                     valueFormat="DD/MM/YYYY"
                     clearable
+                    minDate={
+                        task.dueDate && task.dueDate < todayString()
+                            ? task.dueDate
+                            : todayString()
+                    }
                     leftSection={<IconCalendar size={16} />}
                     disabled={loading}
                     {...form.getInputProps('dueDate')}

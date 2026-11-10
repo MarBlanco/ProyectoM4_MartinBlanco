@@ -3,6 +3,8 @@ import { DateInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { IconCalendar, IconPlus } from '@tabler/icons-react';
 
+import { todayString } from '../utils/dates';
+
 interface TaskFormProps {
     onSubmit: (
         title: string,
@@ -30,6 +32,10 @@ function TaskForm({ onSubmit, loading }: TaskFormProps) {
                 value.trim() ? null : 'El título es obligatorio.',
             description: (value) =>
                 value.trim() ? null : 'La descripción es obligatoria.',
+            dueDate: (value) =>
+                value && value < todayString()
+                    ? 'La fecha no puede ser anterior a hoy.'
+                    : null,
         },
     });
 
@@ -81,6 +87,7 @@ function TaskForm({ onSubmit, loading }: TaskFormProps) {
                     placeholder="Opcional"
                     valueFormat="DD/MM/YYYY"
                     clearable
+                    minDate={todayString()}
                     leftSection={<IconCalendar size={16} />}
                     disabled={loading}
                     {...form.getInputProps('dueDate')}
