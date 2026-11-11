@@ -232,6 +232,7 @@ export default function TasksPage() {
                         </Title>
 
                         <SegmentedControl
+                            size="md"
                             value={view}
                             onChange={(value) => setView(value as 'list' | 'calendar')}
                             data={[
@@ -302,7 +303,7 @@ export default function TasksPage() {
                 withCloseButton={!updating}
                 closeOnClickOutside={!updating}
                 closeOnEscape={!updating}
-                closeButtonProps={{ 'aria-label': 'Cerrar' }}
+                closeButtonProps={{ 'aria-label': 'Cerrar', size: 'lg' }}
             >
                 {editingTask && (
                     <TaskEditForm

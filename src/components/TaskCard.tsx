@@ -101,6 +101,11 @@ function TaskCard({
                 <Button
                     size="xs"
                     variant="light"
+                    // Altura táctil mínima de 36 px y el texto puede partirse en pantallas angostas.
+                    styles={{
+                        root: { height: 'auto', minHeight: 36, paddingBlock: 6 },
+                        label: { whiteSpace: 'normal', textAlign: 'left' },
+                    }}
                     color={task.completed ? 'gray' : 'teal'}
                     c={task.completed ? 'gray.8' : '#065f46'}
                     leftSection={task.completed ? <IconArrowBackUp size={14} /> : <IconCheck size={14} />}

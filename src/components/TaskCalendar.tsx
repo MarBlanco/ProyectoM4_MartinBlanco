@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Box, Group, Paper, SimpleGrid, Stack, Text, Title, VisuallyHidden } from '@mantine/core';
 import { Calendar } from '@mantine/dates';
 import dayjs from 'dayjs';
@@ -32,6 +32,13 @@ function TaskCalendar({
 }: TaskCalendarProps) {
     const [selectedDate, setSelectedDate] = useState(todayString);
     const [visibleDate, setVisibleDate] = useState(todayString);
+    const panelRef = useRef<HTMLDivElement>(null);
+
+    // En móvil el panel queda debajo del calendario: al elegir un día se lleva a la vista.
+    function selectDay(date: string) {
+        setSelectedDate(date);
+        panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     // Solo las tareas con dueDate entran al calendario; las demás quedan en la lista.
     const tasksByDate = useMemo(() => {
@@ -63,6 +70,9 @@ function TaskCalendar({
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             <Paper withBorder p="md" radius="md">
                 <Calendar
+                    className="task-calendar"
+                    fullWidth
+                    highlightToday
                     locale="es"
                     firstDayOfWeek={1}
                     date={visibleDate}
@@ -71,7 +81,7 @@ function TaskCalendar({
                     nextLabel="Mes siguiente"
                     getDayProps={(date) => ({
                         selected: date === selectedDate,
-                        onClick: () => setSelectedDate(date),
+                        onClick: () => selectDay(date),
                     })}
                     renderDay={(date) => {
                         const { pending, completed } = countsFor(date);
@@ -79,26 +89,29 @@ function TaskCalendar({
                         return (
                             <Stack gap={2} align="center">
                                 <span>{dayjs(date).format('D')}</span>
-                                <Group gap={3} h={6} wrap="nowrap" aria-hidden>
+                                <Group gap={3} h={7} wrap="nowrap" aria-hidden>
                                     {pending > 0 && (
                                         <Box
                                             data-testid="dot-pending"
-                                            w={6}
-                                            h={6}
+                                            w={7}
+                                            h={7}
                                             style={{
                                                 borderRadius: '50%',
                                                 background: 'var(--mantine-color-orange-6)',
+                                                // Anillo blanco: se distingue sobre el día seleccionado (fondo azul).
+                                                boxShadow: '0 0 0 1.5px #fff',
                                             }}
                                         />
                                     )}
                                     {completed > 0 && (
                                         <Box
                                             data-testid="dot-completed"
-                                            w={6}
-                                            h={6}
+                                            w={7}
+                                            h={7}
                                             style={{
                                                 borderRadius: '50%',
                                                 background: 'var(--mantine-color-teal-6)',
+                                                boxShadow: '0 0 0 1.5px #fff',
                                             }}
                                         />
                                     )}
@@ -133,7 +146,13 @@ function TaskCalendar({
                 </Group>
             </Paper>
 
-            <Stack gap="sm" aria-label="Tareas del día seleccionado" role="region">
+            <Stack
+                ref={panelRef}
+                gap="sm"
+                aria-label="Tareas del día seleccionado"
+                role="region"
+                className="task-calendar-panel"
+            >
                 <Title order={3} size="h5">
                     {selectedLabel}
                 </Title>

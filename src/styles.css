@@ -28,3 +28,49 @@
         padding-right: 4px;
     }
 }
+
+/* Móvil: los campos a 16px evitan el zoom automático de iOS al enfocarlos. */
+@media (max-width: 48em) {
+    .mantine-Input-input,
+    .mantine-InputWrapper-root textarea {
+        font-size: 16px;
+    }
+}
+
+/* Pantallas muy angostas (<= 344px): solo el icono de la marca, para que entre "Cerrar sesión". */
+@media (max-width: 21.5em) {
+    .app-brand-text {
+        display: none;
+    }
+}
+
+/* Calendario: ancho completo del panel (máx. 440px, centrado en tablet), con filas de tamaño táctil. */
+.task-calendar {
+    max-width: 440px;
+    margin-inline: auto;
+}
+
+.task-calendar .mantine-Calendar-day {
+    height: 44px;
+}
+
+.task-calendar-panel {
+    min-height: 180px;
+    /* Deja espacio para la cabecera fija al desplazarse hasta el panel. */
+    scroll-margin-top: 72px;
+}
+
+/* Móvil y tablet: espacio al final para que los avisos no tapen las acciones de la última tarjeta. */
+@media (max-width: 74.99em) {
+    .mantine-AppShell-main {
+        padding-bottom: 168px;
+    }
+}
+
+/* Botón para quitar la fecha: área táctil de 32 px. */
+.mantine-InputClearButton-root {
+    --cb-size: 2rem;
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+}

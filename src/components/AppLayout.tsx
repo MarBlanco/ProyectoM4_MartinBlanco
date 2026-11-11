@@ -21,10 +21,11 @@ function AppLayout() {
         <AppShell header={{ height: 64 }}>
             <AppShell.Header>
                 <Container size="lg" h="100%">
-                    <Group h="100%" justify="space-between" wrap="nowrap">
+                    <Group h="100%" justify="space-between" wrap="nowrap" gap="xs">
                         <Anchor
                             component={Link}
                             to="/tasks"
+                            aria-label="Gestor de Tareas"
                             underline="never"
                             c="inherit"
                         >
@@ -32,13 +33,13 @@ function AppLayout() {
                                 <ThemeIcon size="lg" radius="md" aria-hidden>
                                     <IconChecklist size={20} />
                                 </ThemeIcon>
-                                <Text fw={700} fz="lg">
+                                <Text className="app-brand-text" fw={700} fz={{ base: 'md', sm: 'lg' }}>
                                     Gestor de Tareas
                                 </Text>
                             </Group>
                         </Anchor>
 
-                        <Group gap="sm" wrap="nowrap">
+                        <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
                             <Text
                                 size="sm"
                                 c="dimmed"

@@ -8,6 +8,8 @@ El proyecto permite que cada usuario ingrese con su cuenta de Google y administr
 
 **Repositorio:** [GitHub - ProyectoM4_MartinBlanco](https://github.com/MarBlanco/ProyectoM4_MartinBlanco)
 
+**Demostración en video:** [Ver demo](docs/evidencias/demo-envio-email.mp4)
+
 ---
 
 ## Funcionalidades
@@ -170,6 +172,16 @@ Además, la función controla las solicitudes y evita procesar métodos HTTP no 
 | `503` | No se pudo verificar el límite de envíos; no se envió ningún correo. |
 
 **Importante:** AWS SES puede trabajar en modo sandbox. En ese caso, tanto el remitente como el destinatario deben estar verificados en la misma región. Para enviar correos a destinatarios no verificados es necesario solicitar acceso a producción.
+
+## Demostración en video
+
+El archivo [`docs/evidencias/demo-envio-email.mp4`](docs/evidencias/demo-envio-email.mp4) muestra el recorrido de la aplicación en funcionamiento: se crea una tarea, se marca como completada y se solicita el resumen con el botón **Enviar resumen por email**.
+
+- **Formato:** MP4 (H.264), 1920 × 806 px.
+- **Duración:** unos 38 segundos, sin audio.
+- **Tamaño:** 244 KB.
+
+Para verlo, abrí el enlace desde GitHub (muestra un reproductor) o descargá el archivo.
 
 ## Instalación y ejecución local
 

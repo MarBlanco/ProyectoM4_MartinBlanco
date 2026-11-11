@@ -1,4 +1,4 @@
-import { Group, Paper, SimpleGrid, Text, ThemeIcon } from '@mantine/core';
+import { Flex, Paper, SimpleGrid, Text, ThemeIcon } from '@mantine/core';
 import { IconCircleCheck, IconClock, IconListDetails } from '@tabler/icons-react';
 
 interface TaskStatsProps {
@@ -30,19 +30,24 @@ function TaskStats({ total, pending, completed }: TaskStatsProps) {
         >
             {items.map(({ label, value, color, icon: Icon }) => (
                 <Paper key={label} withBorder p={{ base: 'sm', sm: 'md' }} radius="md">
-                    <Group gap="sm" wrap="nowrap">
+                    {/* Móvil: icono arriba del número (3 columnas angostas). Desde sm: en fila. */}
+                    <Flex
+                        direction={{ base: 'column', sm: 'row' }}
+                        align={{ base: 'flex-start', sm: 'center' }}
+                        gap={{ base: 6, sm: 'sm' }}
+                    >
                         <ThemeIcon variant="light" color={color} size="lg" radius="md" aria-hidden>
                             <Icon size={20} />
                         </ThemeIcon>
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                             <Text fz={{ base: 22, sm: 26 }} fw={700} lh={1.1} data-testid={`stat-${label}`}>
                                 {value}
                             </Text>
-                            <Text size="sm" c="dimmed">
+                            <Text size="sm" c="dimmed" fz={{ base: 12, sm: 14 }}>
                                 {label}
                             </Text>
                         </div>
-                    </Group>
+                    </Flex>
                 </Paper>
             ))}
         </SimpleGrid>
