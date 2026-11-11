@@ -8,7 +8,7 @@ El proyecto permite que cada usuario ingrese con su cuenta de Google y administr
 
 **Repositorio:** [GitHub - ProyectoM4_MartinBlanco](https://github.com/MarBlanco/ProyectoM4_MartinBlanco)
 
-**Demostración en video:** [Ver demo](docs/evidencias/demo-envio-email.mp4)
+**Demostración en video:** [Ver demo](#demostración-en-video)
 
 ---
 
@@ -175,13 +175,11 @@ Además, la función controla las solicitudes y evita procesar métodos HTTP no 
 
 ## Demostración en video
 
-El archivo [`docs/evidencias/demo-envio-email.mp4`](docs/evidencias/demo-envio-email.mp4) muestra el recorrido de la aplicación en funcionamiento: se crea una tarea, se marca como completada y se solicita el resumen con el botón **Enviar resumen por email**.
+Recorrido de la aplicación en funcionamiento: se crea una tarea, se marca como completada y se solicita el resumen con el botón **Enviar resumen por email**.
 
-- **Formato:** MP4 (H.264), 1920 × 806 px.
-- **Duración:** unos 38 segundos, sin audio.
-- **Tamaño:** 244 KB.
+![Demostración: crear una tarea, completarla y enviar el resumen por email](docs/evidencias/demo-envio-email.gif)
 
-Para verlo, abrí el enlace desde GitHub (muestra un reproductor) o descargá el archivo.
+La animación se reproduce sola en esta página. La grabación original, en mejor calidad, está en [`docs/evidencias/demo-envio-email.mp4`](docs/evidencias/demo-envio-email.mp4) (MP4, 1920 × 806 px, unos 38 segundos, sin audio, 244 KB).
 
 ## Instalación y ejecución local
 
